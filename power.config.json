@@ -1,0 +1,64 @@
+{
+  "version": "1.0",
+  "appId": "426b4d2f-86ea-4a0c-8783-37eb7ef82000",
+  "appDisplayName": "Irish Summit 2026 · Summary Studio",
+  "region": "prod",
+  "environmentId": "bfcc8952-1b0c-e1a1-8464-c5b03ac4284c",
+  "description": "Configurable AI summarisation framework for Dataverse",
+  "buildPath": "./dist",
+  "buildEntryPoint": "index.html",
+  "localAppUrl": "http://localhost:3000",
+  "logoPath": "Default",
+  "connectionReferences": {
+    "6a6da87c-0a25-4b64-ba6f-0329f7c37bde": {
+      "id": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+      "displayName": "Microsoft Dataverse",
+      "dataSources": [
+        "commondataserviceforapps"
+      ],
+      "dataSets": {}
+    }
+  },
+  "databaseReferences": {
+    "default.cds": {
+      "dataSources": {
+        "accounts": {
+          "entitySetName": "accounts",
+          "logicalName": "account",
+          "isHidden": false
+        },
+        "aisummarycaches": {
+          "entitySetName": "csp_aisummarycaches",
+          "logicalName": "csp_aisummarycache",
+          "isHidden": false
+        },
+        "aiusagelogs": {
+          "entitySetName": "csp_aiusages",
+          "logicalName": "csp_aiusage",
+          "isHidden": false
+        },
+        "aiprompts": {
+          "entitySetName": "csp_aiprompts",
+          "logicalName": "csp_aiprompt",
+          "isHidden": false
+        },
+        "aisummaryconfigs": {
+          "entitySetName": "csp_aisummaryconfigs",
+          "logicalName": "csp_aisummaryconfig",
+          "isHidden": false
+        },
+        "savedqueries": {
+          "entitySetName": "savedqueries",
+          "logicalName": "savedquery",
+          "isHidden": false
+        },
+        "userqueries": {
+          "entitySetName": "userqueries",
+          "logicalName": "userquery",
+          "isHidden": false
+        }
+      },
+      "environmentVariableName": ""
+    }
+  }
+}

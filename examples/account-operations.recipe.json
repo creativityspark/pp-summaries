@@ -1,0 +1,27 @@
+{
+  "version": "3.0",
+  "source": {
+    "entity": "account",
+    "fields": ["name", "industrycode", "revenue", "description", "primarycontactid", "modifiedon"],
+    "relationships": [{ "entity": "activitypointer", "windowDays": 30, "maxRecords": 12 }]
+  },
+  "prompt": {
+    "id": "00000000-0000-0000-0000-000000000000",
+    "key": "account-operations",
+    "model": "gpt-4.1-mini",
+    "inputs": {
+      "account_context": "compiled.primaryAndRelated",
+      "generated_at": "utcNow"
+    }
+  },
+  "output": {
+    "entity": "account",
+    "field": "csp_aisummary",
+    "cache": true,
+    "preserveHistory": false
+  },
+  "trigger": {
+    "type": "dataverse.update",
+    "columns": ["name", "revenue", "description", "primarycontactid"]
+  }
+}
