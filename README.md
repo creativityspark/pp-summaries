@@ -185,11 +185,6 @@ The contract boundary makes additional capabilities independent of the authoring
 **AI Summaries in Dataverse: Above and Beyond**
 Irish Power Platform Summit 2026 · Microsoft Dublin · 8 October 2026
 
-Presented by:
-
-- **Cristhian Fernandez** — Microsoft MVP
-- **Oscar Fuentes** — Creativity Spark
-
 ## License
 
 Released under the [MIT License](LICENSE). The project is provided as a reference implementation; review security, governance, licensing, and capacity requirements before adapting it for production use.
