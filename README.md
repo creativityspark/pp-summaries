@@ -60,11 +60,11 @@ flowchart LR
 
 The editor follows a familiar model-driven Business Process Flow pattern:
 
-1. **Data and context** — select the primary table, fields, relationships, and record window.
-2. **Prompt and model** — bind an AI Prompt, map runtime inputs, and review token estimates.
-3. **Destination** — choose the output table and column, retention mode, and metadata policy.
-4. **Execution** — select an event-driven, scheduled, or on-demand trigger pattern.
-5. **Review and publish** — validate the contract and hand it to the generator backend.
+1. **Data and context:** select the primary table, fields, relationships, and record window.
+2. **Prompt and model:** bind an AI Prompt, map runtime inputs, and review token estimates.
+3. **Destination:** choose the output table and column, retention mode, and metadata policy.
+4. **Execution:** select an event-driven, scheduled, or on-demand trigger pattern.
+5. **Review and publish:** validate the contract and hand it to the generator backend.
 
 Every editing action uses an in-context side pane. The main canvas remains compact enough to present the complete decision path without turning the application into a generic flow designer.
 
