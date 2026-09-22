@@ -24,19 +24,21 @@ export class Csp_aisummaryconfigsService {
     return result;
   }
 
-  public static async update(id: string, changedFields: Partial<Omit<Csp_aisummaryconfigsBase, 'csp_aisummaryconfigid'>>): Promise<IOperationResult<Csp_aisummaryconfigs>> {
+  public static async update(id: string, changedFields: Partial<Omit<Csp_aisummaryconfigsBase, 'csp_aisummaryconfigid'>>, partitionId?: string): Promise<IOperationResult<Csp_aisummaryconfigs>> {
     const result = await Csp_aisummaryconfigsService.client.updateRecordAsync<Partial<Omit<Csp_aisummaryconfigsBase, 'csp_aisummaryconfigid'>>, Csp_aisummaryconfigs>(
       Csp_aisummaryconfigsService.dataSourceName,
       id,
-      changedFields
+      changedFields,
+      partitionId
     );
     return result;
   }
 
-  public static async delete(id: string): Promise<void> {
+  public static async delete(id: string, partitionId?: string): Promise<void> {
     await Csp_aisummaryconfigsService.client.deleteRecordAsync(
       Csp_aisummaryconfigsService.dataSourceName,
-      id);
+      id,
+      partitionId);
   }
 
   public static async get(id: string, options?: IGetOptions): Promise<IOperationResult<Csp_aisummaryconfigs>> {

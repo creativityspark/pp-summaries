@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { VisualFilterBuilder } from "@/components/VisualFilterBuilder";
 import { cn } from "@/lib/utils";
-import { buildConfigurationPayload, buildContextFetchXml, buildPublishSignal, buildRecordSelectionFetchXml, compileRecipe, type SummaryConfigurationDraft } from "@/lib/summaryConfiguration";
+import { buildConfigurationPayload, buildContextFetchXml, buildPublishSignal, buildRecordSelectionFetchXml, compileRecipe, getTargetEntityIdentity, type SummaryConfigurationDraft } from "@/lib/summaryConfiguration";
 import { useStudioRuntime, useUpdateStudioConfiguration, useUpdateStudioPrompt, type StudioAccount, type StudioConfiguration, type StudioPrompt } from "@/hooks/useStudioRuntime";
 import { useSystemViews } from "@/hooks/useSystemViews";
 import { useUserViews } from "@/hooks/useUserViews";
@@ -347,7 +347,7 @@ function Builder() {
     : draft.model.replace("gpt-", "GPT-").replace("-mini", " mini");
   const applyPane = async (value: string) => {
     if (!pane) return;
-    if (pane === "table") { const entity = value.includes("incident") ? "incident" : value.includes("opportunity") ? "opportunity" : "account"; const fetchXml = buildRecordSelectionFetchXml(entity, draft.maxRecords); const relatedFetchXml = buildContextFetchXml(entity, draft.sourceFields, draft.relationships); await save({ ...draft, entity, fetchXml, relatedFetchXml }, { csp_targetentity: entity, csp_fetchxml: fetchXml, csp_relatedfetchxml: relatedFetchXml }); }
+    if (pane === "table") { const entity = value.includes("incident") ? "incident" : value.includes("opportunity") ? "opportunity" : "account"; const fetchXml = buildRecordSelectionFetchXml(entity, draft.maxRecords); const relatedFetchXml = buildContextFetchXml(entity, draft.sourceFields, draft.relationships); const target = getTargetEntityIdentity(entity); await save({ ...draft, entity, fetchXml, relatedFetchXml }, { csp_targetentity: entity, csp_targetentityset: target.entitySet, csp_targetentityidfield: target.idField, csp_fetchxml: fetchXml, csp_relatedfetchxml: relatedFetchXml }); }
     if (pane === "execution") { const mode = value === "Consolidated summary" ? 100000001 : 100000000; await save({ ...draft, mode }, { csp_mode: mode }); }
     if (pane === "model") { const model = value.toLowerCase().replace(" ", "-"); await save({ ...draft, model }, { csp_model: model }); }
     if (pane === "prompt") { const prompt = prompts.find((item) => item.name === value); if (prompt) await save({ ...draft, promptId: prompt.id, promptName: prompt.name, promptKey: prompt.key, promptContent: prompt.content }, { "csp_Prompt@odata.bind": `/csp_aiprompts(${prompt.id})` }); }

@@ -48,7 +48,8 @@ export const Csp_aisummaryconfigsstatecode = {
 } as const;
 export type Csp_aisummaryconfigsstatecode = keyof typeof Csp_aisummaryconfigsstatecode;
 export const Csp_aisummaryconfigsstatuscode = {
-  1: 'Active',
+  1: 'Draft',
+  787000001: 'Active',
   2: 'Inactive'
 } as const;
 export type Csp_aisummaryconfigsstatuscode = keyof typeof Csp_aisummaryconfigsstatuscode;
@@ -79,6 +80,7 @@ export interface Csp_aisummaryconfigsBase {
   csp_outputdestination?: Csp_aisummaryconfigscsp_outputdestination;
   csp_outputentity?: string;
   csp_outputfield?: string;
+  "csp_processid@odata.bind"?: string;
   "csp_Prompt@odata.bind": string;
   csp_querymode?: Csp_aisummaryconfigscsp_querymode;
   csp_relatedfetchxml?: string;
@@ -87,6 +89,8 @@ export interface Csp_aisummaryconfigsBase {
   csp_status?: Csp_aisummaryconfigscsp_status;
   csp_systemviewid?: string;
   csp_targetentity: string;
+  csp_targetentityidfield?: string;
+  csp_targetentityset?: string;
   csp_triggercolumns?: string;
   csp_userviewid?: string;
   csp_version?: string;
@@ -99,29 +103,16 @@ export interface Csp_aisummaryconfigsBase {
 }
 
 export interface Csp_aisummaryconfigs extends Csp_aisummaryconfigsBase {
-  createdbyname?: string;
-  createdbyyominame: string;
   createdon?: string;
-  createdonbehalfbyname?: string;
-  createdonbehalfbyyominame: string;
   csp_cadencename?: string;
   csp_enabledname?: string;
   csp_lastrunstatusname?: string;
   csp_modename?: string;
   csp_outputdestinationname?: string;
-  csp_promptname?: string;
   csp_querymodename?: string;
   csp_statusname?: string;
-  modifiedbyname?: string;
-  modifiedbyyominame: string;
   modifiedon?: string;
-  modifiedonbehalfbyname?: string;
-  modifiedonbehalfbyyominame: string;
   ownerid: string;
-  owneridname: string;
-  owneridtype: string;
-  owneridyominame: string;
-  owningbusinessunitname: string;
   statecodename?: string;
   statuscodename?: string;
   versionnumber?: number;
@@ -129,6 +120,8 @@ export interface Csp_aisummaryconfigs extends Csp_aisummaryconfigsBase {
   _createdby_value?: string;
   createdonbehalfby?: object;
   _createdonbehalfby_value?: string;
+  csp_processid?: object;
+  _csp_processid_value?: string;
   csp_prompt?: object;
   _csp_prompt_value?: string;
   modifiedby?: object;

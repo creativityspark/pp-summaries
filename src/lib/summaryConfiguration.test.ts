@@ -75,6 +75,8 @@ describe("summary configuration persistence", () => {
     expect(payload).toMatchObject({
       csp_name: "Account operations summary",
       csp_targetentity: "account",
+      csp_targetentityset: "accounts",
+      csp_targetentityidfield: "accountid",
       csp_sourcefields: JSON.stringify(["name", "revenue", "description"]),
       csp_relationships: JSON.stringify([{ entity: "activitypointer", windowDays: 30, maxRecords: 12 }]),
       csp_inputmappings: JSON.stringify({ account_context: "compiled.primaryAndRelated" }),

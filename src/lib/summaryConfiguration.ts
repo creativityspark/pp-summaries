@@ -29,6 +29,19 @@ const primaryIdByEntity: Record<string, string> = {
   opportunity: "opportunityid",
 };
 
+const entitySetByEntity: Record<string, string> = {
+  account: "accounts",
+  incident: "incidents",
+  opportunity: "opportunities",
+};
+
+export function getTargetEntityIdentity(entity: string) {
+  return {
+    entitySet: entitySetByEntity[entity] ?? `${entity}s`,
+    idField: primaryIdByEntity[entity] ?? `${entity}id`,
+  };
+}
+
 export function buildRecordSelectionFetchXml(entity: string, maxRecords: number) {
   const primaryId = primaryIdByEntity[entity] ?? `${entity}id`;
   return `<fetch top="${maxRecords}"><entity name="${entity}"><attribute name="${primaryId}" /></entity></fetch>`;
@@ -90,9 +103,12 @@ export function compileRecipe(draft: SummaryConfigurationDraft) {
 }
 
 export function buildConfigurationPayload(draft: SummaryConfigurationDraft): Record<string, unknown> {
+  const target = getTargetEntityIdentity(draft.entity);
   const payload: Record<string, unknown> = {
     csp_name: draft.name,
     csp_targetentity: draft.entity,
+    csp_targetentityset: target.entitySet,
+    csp_targetentityidfield: target.idField,
     csp_sourcefields: JSON.stringify(draft.sourceFields),
     csp_relationships: JSON.stringify(draft.relationships),
     csp_inputmappings: JSON.stringify(draft.inputMappings),
