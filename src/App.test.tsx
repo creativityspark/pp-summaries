@@ -38,7 +38,6 @@ describe("Creativity Spark Summary Studio", () => {
     expect(screen.getByRole("button", { name: /Destination/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Execution/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Review and publish/ })).toBeInTheDocument();
-    expect(screen.getByText("account")).toBeInTheDocument();
     expect(screen.getByText("3 demo records")).toBeInTheDocument();
   });
 
@@ -53,10 +52,52 @@ describe("Creativity Spark Summary Studio", () => {
     expect(screen.getByText("05 · Publish")).toBeInTheDocument();
   });
 
+  it("makes every data and context setting explicitly configurable", async () => {
+    renderRoute("/configurations/account-operations");
+
+    expect(await screen.findByRole("region", { name: "1. Records to summarize" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "2. Context for each record" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change source table" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Configure record FetchXML" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change summary mode" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Configure source fields" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Configure context FetchXML" })).toBeInTheDocument();
+    expect(screen.getByText("csp_fetchxml")).toBeInTheDocument();
+    expect(screen.getAllByText("csp_relatedfetchxml").length).toBeGreaterThan(0);
+  });
+
+  it("opens the context FetchXML editor from the context section", async () => {
+    renderRoute("/configurations/account-operations");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Configure context FetchXML" }));
+    expect(screen.getByRole("complementary", { name: "Edit context query" })).toBeInTheDocument();
+    expect((screen.getByLabelText("Context FetchXML") as HTMLTextAreaElement).value).toContain("{{recordId}}");
+  });
+
+  it("offers filters, saved views, and FetchXML for record selection", async () => {
+    renderRoute("/configurations/account-operations");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Configure record FetchXML" }));
+    expect(screen.getByRole("complementary", { name: "Configure record selection" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Build filters" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Choose a view" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Edit FetchXML" })).toBeInTheDocument();
+  });
+
+  it("offers the same query modes for related records", async () => {
+    renderRoute("/configurations/account-operations");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Configure related records" }));
+    expect(screen.getByRole("complementary", { name: "Configure related records" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Build filters" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Choose a view" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Edit FetchXML" })).toBeInTheDocument();
+  });
+
   it("opens a model-driven side pane when a configuration property is edited", async () => {
     renderRoute("/configurations/account-operations");
 
-    fireEvent.click(await screen.findByRole("button", { name: "Edit primary table" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Change source table" }));
 
     expect(screen.getByRole("complementary", { name: "Edit primary table" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Primary table" })).toBeInTheDocument();
@@ -66,7 +107,7 @@ describe("Creativity Spark Summary Studio", () => {
   it("adds a Dataverse source field from the side pane", async () => {
     renderRoute("/configurations/account-operations");
 
-    fireEvent.click(await screen.findByRole("button", { name: "Add field" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Configure source fields" }));
     expect(screen.getByRole("complementary", { name: "Edit selected fields" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Account number/ }));

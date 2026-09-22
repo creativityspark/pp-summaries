@@ -29,6 +29,10 @@ export interface StudioConfiguration {
   promptName: string;
   enabled: boolean;
   lastRun: string | null;
+  queryMode: number;
+  maxRecords: number;
+  fetchXml: string;
+  relatedFetchXml: string;
 }
 
 export interface StudioRun {
@@ -80,6 +84,10 @@ const fallback: StudioRuntime = {
     promptName: "Account executive summary",
     enabled: true,
     lastRun: new Date().toISOString(),
+    queryMode: 100000002,
+    maxRecords: 5000,
+    fetchXml: '<fetch top="5000"><entity name="account"><attribute name="accountid" /></entity></fetch>',
+    relatedFetchXml: '<fetch><entity name="account"><attribute name="accountid" /><attribute name="name" /><filter><condition attribute="accountid" operator="eq" value="{{recordId}}" /></filter></entity></fetch>',
   }],
   prompts: [{ id: "mock-prompt", name: "Account executive summary", key: "account-operations", model: "gpt-4.1-mini", version: "3.0", content: "Generate an executive summary using {{account_context}}." }],
   runs: [
@@ -146,6 +154,7 @@ export function useStudioRuntime() {
             sourceFields: parseJson<string[]>(raw.csp_sourcefields, []), triggerColumns: parseJson<string[]>(raw.csp_triggercolumns, []), relationships: parseJson<Array<Record<string, unknown>>>(raw.csp_relationships, []), inputMappings: parseJson<Record<string, string>>(raw.csp_inputmappings, {}),
             outputEntity: String(raw.csp_outputentity ?? raw.csp_targetentity ?? "account"), outputField: String(raw.csp_outputfield ?? "csp_aisummary"), model: String(raw.csp_model ?? "gpt-4.1-mini"), version: String(raw.csp_version ?? "1.0"), flowName: String(raw.csp_flowname ?? ""),
             status: Number(raw.csp_status ?? 100000000), mode: Number(raw.csp_mode ?? 100000000), promptId: String(raw._csp_prompt_value ?? ""), promptName: isSummitDemo ? "Account executive summary" : String(raw.csp_promptname ?? ""), enabled: Boolean(raw.csp_enabled), lastRun: raw.csp_lastrun ? String(raw.csp_lastrun) : null,
+            queryMode: Number(raw.csp_querymode ?? 100000002), maxRecords: Number(raw.csp_maxrecords ?? 5000), fetchXml: String(raw.csp_fetchxml ?? ""), relatedFetchXml: String(raw.csp_relatedfetchxml ?? ""),
           };
         });
         const accounts = (accountResult.data ?? []).map((item) => {
@@ -175,6 +184,18 @@ export function useUpdateStudioConfiguration() {
       if (id === "mock-config" || !isPowerAppsRuntime()) return;
       const { Csp_aisummaryconfigsService } = await import("@/generated/services/Csp_aisummaryconfigsService");
       await Csp_aisummaryconfigsService.update(id, changes as never);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: runtimeKey }),
+  });
+}
+
+export function useUpdateStudioPrompt() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, content }: { id: string; content: string }) => {
+      if (id === "mock-prompt" || !isPowerAppsRuntime()) return;
+      const { Csp_aipromptsService } = await import("@/generated/services/Csp_aipromptsService");
+      await Csp_aipromptsService.update(id, { csp_content: content } as never);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: runtimeKey }),
   });

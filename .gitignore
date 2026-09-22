@@ -40,6 +40,7 @@ Thumbs.db
 *.sw?
 
 # Local review artifacts
+.integration-work/
 visual-*.png
 visual_check.py
 PLAN.md
