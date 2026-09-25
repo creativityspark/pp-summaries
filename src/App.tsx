@@ -1,5 +1,37 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Checkbox, Input, Select, Textarea } from "@fluentui/react-components";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from "react";
+import {
+  Avatar,
+  Breadcrumb,
+  BreadcrumbButton,
+  BreadcrumbDivider,
+  BreadcrumbItem,
+  Checkbox,
+  Input,
+  NavDrawer,
+  NavDrawerBody,
+  NavDrawerHeader,
+  NavItem,
+  NavSectionHeader,
+  SearchBox,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableCellLayout,
+  TableHeader,
+  TableHeaderCell,
+  TableRow,
+  Textarea,
+  Toolbar,
+  ToolbarButton,
+  ToolbarDivider,
+} from "@fluentui/react-components";
 import { Apps20Regular as Blocks } from "@fluentui/react-icons/svg/apps";
 import { ArrowRight20Regular as ArrowRight } from "@fluentui/react-icons/svg/arrow-right";
 import { ArrowSync20Regular as RefreshCw } from "@fluentui/react-icons/svg/arrow-sync";
@@ -30,13 +62,12 @@ import { Target20Regular as Target } from "@fluentui/react-icons/svg/target";
 import { WindowConsole20Regular as Code } from "@fluentui/react-icons/svg/window-console";
 import {
   Link,
-  NavLink,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useParams,
 } from "react-router-dom";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -131,96 +162,81 @@ const navItems = [
 function Shell({ children }: { children: ReactNode }) {
   const { data } = useStudioRuntime();
   const live = data?.live ?? false;
+  const navigate = useNavigate();
+  const location = useLocation();
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
+  const searchValue = new URLSearchParams(location.search).get("q") ?? "";
+  const followInternalLink = (
+    event: ReactMouseEvent<HTMLElement>,
+    to: string,
+  ) => {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+    event.preventDefault();
+    navigate(to);
+  };
+  const selectedNavigation = location.pathname.startsWith("/runs")
+    ? "/runs"
+    : location.pathname.startsWith("/configurations") ||
+        location.pathname.startsWith("/published")
+      ? "/configurations/account-operations"
+      : "/";
   return (
     <div className="studio-shell">
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
       <aside className="studio-sidebar" data-collapsed={navigationCollapsed}>
-        <div className="px-5 pt-6">
-          <div
-            role="img"
-            aria-label="Creativity Spark"
-            className="brand-lockup flex items-center gap-3 py-1"
-          >
-            <BrandMark className="h-[52px] w-[42px] shrink-0" />
-            <div className="brand-copy min-w-0">
-              <p className="whitespace-nowrap text-[21px] font-bold leading-none tracking-[-.035em] text-white">
-                Creativity Spark
-              </p>
-              <p className="mt-2 whitespace-nowrap text-[8px] tracking-[.08em] text-white/65">
-                We turn your ideas into brilliant apps
-              </p>
-            </div>
-          </div>
-          <div className="product-lockup mt-5 flex items-center gap-2 border-t border-white/10 pt-4">
-            <BrandMark className="size-6 shrink-0" />
-            <div className="product-copy">
-              <p className="text-[13px] font-semibold text-white">
-                Summary Studio
-              </p>
-              <p className="text-[9px] font-semibold uppercase tracking-[.18em] text-white/38">
-                Power Platform compiler
-              </p>
-            </div>
-          </div>
-        </div>
-        <nav
-          className="mt-8 flex-1 border-t border-white/10 px-3 pt-7"
+        <NavDrawer
+          className="studio-nav-drawer"
+          open
+          type="inline"
+          density="medium"
+          selectedValue={selectedNavigation}
           aria-label="Summary Studio navigation"
         >
-          <p className="micro-label mb-2 px-3 text-white/28">Workspace</p>
+          <NavDrawerHeader className="studio-nav-header">
+            <div
+              role="img"
+              aria-label="Creativity Spark"
+              className="brand-lockup"
+            >
+              <BrandMark />
+              <div className="brand-copy">
+                <p>Summary Studio</p>
+                <p>Power Platform</p>
+              </div>
+            </div>
+          </NavDrawerHeader>
+          <NavDrawerBody>
+            <NavSectionHeader>Workspace</NavSectionHeader>
           {navItems.map(
-            ({ to, label, icon: Icon, activeIcon: ActiveIcon, end }) => (
-              <NavLink
+            ({ to, label, icon: Icon, activeIcon: ActiveIcon }) => (
+              <NavItem
                 key={to}
-                to={to}
-                end={end}
+                value={to}
+                href={`#${to}`}
+                icon={
+                  selectedNavigation === to ? <ActiveIcon /> : <Icon />
+                }
                 aria-label={label}
                 title={navigationCollapsed ? label : undefined}
-                className={({ isActive }) =>
-                  cn("studio-nav", isActive && "studio-nav-active")
-                }
+                onClick={(event) => followInternalLink(event, to)}
               >
-                {({ isActive }) => (
-                  <>
-                    <span className="nav-icon">
-                      {isActive ? <ActiveIcon /> : <Icon />}
-                    </span>
-                    <span className="nav-label flex-1">{label}</span>
-                    {isActive && <i />}
-                  </>
-                )}
-              </NavLink>
+                <span className="nav-label">{label}</span>
+              </NavItem>
             ),
           )}
-        </nav>
-        <div className="environment-card mx-4 mb-4 rounded-xl border border-white/10 bg-white/[.035] p-3">
-          <div className="flex items-center gap-2 text-[10px] text-white/50">
-            <span className="size-1.5 rounded-full bg-emerald-400" />
-            Demo environment
-          </div>
-          <p className="mt-2 font-mono text-[9px] text-white/34">
-            spark-tools-dev.crm4
-          </p>
-        </div>
-        <div className="user-card m-4 mt-0 border-t border-white/10 pt-4">
-          <div className="flex items-center gap-3">
-            <Avatar className="size-8 border border-white/10">
-              <AvatarFallback className="bg-brand-blue text-[10px] font-semibold text-white">
-                OF
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[11px] font-medium text-white">
-                Oscar Fuentes
-              </p>
-              <p className="text-[9px] text-white/35">Maker · administrator</p>
-            </div>
-            <Settings className="size-4 text-white/30" />
-          </div>
-        </div>
+          </NavDrawerBody>
+        </NavDrawer>
         <button
           className="nav-collapse"
           type="button"
@@ -233,27 +249,56 @@ function Shell({ children }: { children: ReactNode }) {
         </button>
       </aside>
       <main id="main-content" className="min-w-0 flex-1 overflow-x-hidden">
-        <header
-          className="studio-topbar"
-          role="toolbar"
-          aria-label="Application commands"
-        >
-          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">
-              AI Summaries in Dataverse
-            </span>
-            <ChevronRight className="size-3.5" />
-            <span>Above and Beyond</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="hidden items-center gap-2 text-[10px] text-muted-foreground md:flex">
-              <span className="size-1.5 rounded-full bg-emerald-500" />
-              {live ? "Dataverse connected" : "Local fallback"}
-            </span>
-            <Button variant="outline" size="sm">
-              <Search data-icon="inline-start" />
-              Search
+        <header className="studio-topbar">
+          <div className="studio-topbar-leading">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Microsoft 365 apps"
+              title="Microsoft 365 apps"
+            >
+              <Blocks />
             </Button>
+            <span className="studio-topbar-divider" aria-hidden="true" />
+            <Breadcrumb aria-label="Breadcrumb">
+              <BreadcrumbItem>
+                <BreadcrumbButton
+                  href="#/"
+                  onClick={(event) => followInternalLink(event, "/")}
+                >
+                  Summary Studio
+                </BreadcrumbButton>
+              </BreadcrumbItem>
+              <BreadcrumbDivider />
+              <BreadcrumbItem>
+                <BreadcrumbButton current>
+                  {selectedNavigation === "/runs" ? "Runs" : "Configurations"}
+                </BreadcrumbButton>
+              </BreadcrumbItem>
+            </Breadcrumb>
+          </div>
+          <SearchBox
+            className="studio-global-search"
+            aria-label="Search"
+            placeholder="Search configurations"
+            size="medium"
+            value={searchValue}
+            onChange={(_, data) => {
+              const query = data.value.trim();
+              navigate(query ? `/?q=${encodeURIComponent(query)}` : "/", {
+                replace: true,
+              });
+            }}
+          />
+          <div className="studio-global-actions">
+            <span className="environment-status">
+              <i />
+              {live ? "Dataverse" : "Local"}
+            </span>
+            <Button variant="ghost" size="icon-sm" aria-label="Settings">
+              <Settings />
+            </Button>
+            <Avatar name="Oscar Fuentes" size={28} color="colorful" />
           </div>
         </header>
         {children}
@@ -281,7 +326,12 @@ function PageHeader({
         <p>{description}</p>
       </div>
       {actions && (
-        <div className="flex shrink-0 items-center gap-2">{actions}</div>
+        <Toolbar
+          aria-label={`${title} commands`}
+          className="page-command-bar"
+        >
+          {actions}
+        </Toolbar>
       )}
     </div>
   );
@@ -289,196 +339,159 @@ function PageHeader({
 
 function Overview() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { data, refetch, isFetching } = useStudioRuntime();
   const runtime = data;
   const configurations = runtime?.configurations ?? [];
+  const query = (new URLSearchParams(location.search).get("q") ?? "")
+    .trim()
+    .toLocaleLowerCase();
+  const visibleConfigurations = query
+    ? configurations.filter((item) =>
+        [
+          item.name,
+          item.promptName,
+          item.entity,
+          item.outputEntity,
+          item.outputField,
+          item.flowName,
+        ].some((value) => value?.toLocaleLowerCase().includes(query)),
+      )
+    : configurations;
   const published = configurations.filter(
     (item) => item.status === 100000001,
   ).length;
   return (
     <Shell>
-      <div className="studio-page">
-        <section className="compiler-hero compiler-hero-compact">
-          <div className="hero-compact-copy">
-            <p className="micro-label text-brand-cyan">
-              Summary Studio · declarative configuration
-            </p>
-            <h1>Configure AI summaries</h1>
-            <p>
-              Define context, prompt, destination, and execution in a single
-              Dataverse recipe.
-            </p>
-          </div>
-          <div className="hero-compact-actions">
-            <Button
-              onClick={() => navigate("/configurations/new")}
-              className="bg-brand-cyan text-brand-navy hover:bg-brand-cyan/90"
-            >
-              <Sparkles data-icon="inline-start" />
-              New configuration
-            </Button>
-            {configurations[0] && (
-              <Link
-                to={`/configurations/${configurations[0].id}`}
-                className="hero-link"
-              >
-                Open recipe <ArrowRight />
-              </Link>
-            )}
-          </div>
-          <div
-            className="compiler-pipeline"
-            aria-label="Summary recipe and Power Platform components"
+      <div className="studio-page catalog-page">
+        <PageHeader
+          eyebrow="Summary Studio"
+          title="Summary configurations"
+          description="Create and manage the Dataverse recipes that drive each generated summary."
+        />
+
+        <Toolbar aria-label="Configuration commands" className="catalog-command-bar">
+          <ToolbarButton
+            className="primary-command"
+            appearance="primary"
+            icon={<Sparkles />}
+            onClick={() => navigate("/configurations/new")}
           >
-            <span>
-              <Braces />
-              <b>Recipe</b>
-              <small>context + rules</small>
-            </span>
-            <ChevronRight />
-            <span>
-              <Database />
-              <b>Dataverse</b>
-              <small>configuration</small>
-            </span>
-            <ChevronRight />
-            <span>
-              <Bot />
-              <b>AI Prompt</b>
-              <small>instructions</small>
-            </span>
-            <ChevronRight />
-            <span>
-              <Flow />
-              <b>Backend</b>
-              <small>materialization</small>
-            </span>
-          </div>
-        </section>
-
-        <section className="stat-ribbon" aria-label="Studio summary">
-          <div>
-            <b>{published}</b>
-            <span>published configurations</span>
-          </div>
-          <div>
-            <b>{runtime?.cacheCount ?? 0}</b>
-            <span>available summaries</span>
-          </div>
-          <div>
-            <b>{runtime?.runs.length ?? 0}</b>
-            <span>recorded runs</span>
-          </div>
-          <div>
-            <b>{runtime?.accounts.length ?? 0}</b>
-            <span>demo records</span>
-          </div>
-        </section>
-
-        <section className="mt-6">
-          <div className="section-heading">
-            <div>
-              <p className="micro-label text-muted-foreground">Catalog</p>
-              <h2>Summary configurations</h2>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refetch()}
-                disabled={isFetching}
-              >
-                <RefreshCw data-icon="inline-start" />
-                {isFetching ? "Refreshing" : "Refresh"}
-              </Button>
-              <Button size="sm" onClick={() => navigate("/configurations/new")}>
-                <Sparkles data-icon="inline-start" />
-                Create summary
-              </Button>
-            </div>
-          </div>
-          <div className="config-table">
-            <div className="config-table-head">
-              <span>Configuration</span>
-              <span>Source and destination</span>
-              <span>Trigger</span>
-              <span>Activity</span>
-              <span>Status</span>
-              <span />
-            </div>
-            {configurations.map((item, index) => (
-              <Link
-                className="config-row"
-                to={`/configurations/${item.id}`}
-                key={item.id || item.name}
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <span
-                    className={cn(
-                      "entity-icon",
-                      index === 1 && "violet",
-                      index === 2 && "green",
-                      index === 3 && "amber",
-                    )}
-                  >
-                    <Database />
-                  </span>
-                  <span className="min-w-0">
-                    <b>{item.name}</b>
-                    <small>{item.promptName || "AI Prompt"}</small>
-                  </span>
-                </div>
-                <div>
-                  <b>{item.entity === "account" ? "Account" : item.entity}</b>
-                  <small>
-                    {item.outputEntity}.{item.outputField}
-                  </small>
-                </div>
-                <div>
-                  <b>{item.mode === 100000000 ? "On update" : "Scheduled"}</b>
-                  <small>{item.flowName || "Flow pending"}</small>
-                </div>
-                <div>
-                  <b>{runtime?.runs.length ?? 0} runs</b>
-                  <small>
-                    {item.lastRun ? "Activity recorded" : "Not run"}
-                  </small>
-                </div>
-                <div>
-                  <Badge
-                    variant="outline"
-                    className={
-                      item.status === 100000001 ? "status-live" : "status-draft"
-                    }
-                  >
-                    {item.status === 100000001 ? "Published" : "Draft"}
-                  </Badge>
-                </div>
-                <ChevronRight className="size-4 text-muted-foreground" />
-              </Link>
-            ))}
-          </div>
-        </section>
-        <section className="architecture-note">
-          <span>
-            <Blocks />
+            New configuration
+          </ToolbarButton>
+          <ToolbarButton
+            appearance="subtle"
+            icon={<RefreshCw />}
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            {isFetching ? "Refreshing" : "Refresh"}
+          </ToolbarButton>
+          <ToolbarDivider />
+          <span className="catalog-command-hint">
+            Stored in <code>csp_aisummaryconfig</code>
           </span>
+        </Toolbar>
+
+        <section className="catalog-status" aria-label="Studio summary">
+          <span><b>{published}</b> published configurations</span>
+          <span><b>{runtime?.cacheCount ?? 0}</b> available summaries</span>
+          <span><b>{runtime?.runs.length ?? 0}</b> recorded runs</span>
+          <span><b>{runtime?.accounts.length ?? 0}</b> demo records</span>
+        </section>
+
+        <section className="catalog-grid" aria-labelledby="catalog-grid-title">
+          <div className="catalog-grid-heading">
+            <div>
+              <h2 id="catalog-grid-title">Configurations</h2>
+              <p>Select a row to review or change its recipe.</p>
+            </div>
+            <Badge variant="outline">{visibleConfigurations.length} items</Badge>
+          </div>
+          <Table aria-label="Summary configurations" className="config-table" size="medium">
+            <TableHeader>
+              <TableRow>
+                <TableHeaderCell>Configuration</TableHeaderCell>
+                <TableHeaderCell>Source & destination</TableHeaderCell>
+                <TableHeaderCell>Trigger</TableHeaderCell>
+                <TableHeaderCell>Activity</TableHeaderCell>
+                <TableHeaderCell>Status</TableHeaderCell>
+                <TableHeaderCell aria-label="Open" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visibleConfigurations.map((item) => (
+                <TableRow key={item.id || item.name}>
+                  <TableCell>
+                    <TableCellLayout media={<span className="entity-icon"><Database /></span>}>
+                      <Link className="configuration-link" to={`/configurations/${item.id}`}>
+                        <b>{item.name}</b>
+                        <small>{item.promptName || "AI Prompt"}</small>
+                      </Link>
+                    </TableCellLayout>
+                  </TableCell>
+                  <TableCell>
+                    <span className="table-value">
+                      <b>{item.entity === "account" ? "Account" : item.entity}</b>
+                      <small>{item.outputEntity}.{item.outputField}</small>
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="table-value">
+                      <b>{item.mode === 100000000 ? "On update" : "Scheduled"}</b>
+                      <small>{item.flowName || "Flow pending"}</small>
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="table-value">
+                      <b>{runtime?.runs.length ?? 0} runs</b>
+                      <small>{item.lastRun ? "Activity recorded" : "Not run"}</small>
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={item.status === 100000001 ? "status-live" : "status-draft"}
+                    >
+                      {item.status === 100000001 ? "Published" : "Draft"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Open ${item.name}`}
+                      onClick={() => navigate(`/configurations/${item.id}`)}
+                    >
+                      <ChevronRight />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {visibleConfigurations.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6}>
+                    <div className="catalog-empty-state">
+                      <Search />
+                      <span>
+                        <b>No configurations match your search.</b>
+                        <small>Try a name, table, prompt, or flow.</small>
+                      </span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </section>
+
+        <section className="platform-strip">
+          <span className="platform-strip-icon"><Flow /></span>
           <div>
-            <b>One engine, multiple patterns</b>
-            <p>
-              Configurations are stored in Dataverse and materialized through
-              governed Power Automate templates: event-driven, scheduled, or on
-              demand.
-            </p>
+            <b>Power Platform pipeline</b>
+            <p>Dataverse configuration → AI Prompt → generated cloud flow</p>
           </div>
-          <code>csp_aisummaryconfig</code>
-          <div className="extension-marker">
-            <Sparkles />
-            <span>
-              <small>Extension ready</small>
-              <b>Foundry evaluations</b>
-            </span>
-          </div>
+          <span>Foundry evaluations ready</span>
         </section>
       </div>
     </Shell>
@@ -1250,14 +1263,19 @@ function PromptStep({
           </div>
           <Textarea
             resize="none"
-            className="prompt-fluent-textarea min-h-[190px] w-full font-mono text-sm leading-6"
+            className="prompt-fluent-textarea w-full font-mono text-sm leading-6"
             value={promptContent}
             onChange={(event) => setPromptContent(event.target.value)}
             aria-label="Prompt instructions"
           />
           <div className="prompt-editor-footer">
+            <span className="prompt-runtime-label">Runtime inputs</span>
             <code>{"{{account_context}}"}</code>
-            <span>Dataverse AI Prompt</span>
+            <code>{"{{generated_at}}"}</code>
+            <span className="prompt-cost">
+              <span>Estimate · 1,240 tokens per run</span>
+              <b>≈ €0.0009</b>
+            </span>
             <Button
               type="button"
               size="sm"
@@ -1273,29 +1291,6 @@ function PromptStep({
             </Button>
           </div>
         </div>
-        <small>
-          Changes are saved to the selected AI Prompt record in Dataverse.
-        </small>
-      </div>
-      <div className="input-grid">
-        <div>
-          <p className="field-caption">Runtime inputs</p>
-          <span>
-            <Database />
-            {"{{account_context}}"}
-            <small>JSON · compiled from FetchXML</small>
-          </span>
-          <span>
-            <Clock />
-            {"{{generated_at}}"}
-            <small>DateTime · Europe/Madrid</small>
-          </span>
-        </div>
-        <aside>
-          <p>Estimate · 1,240 tokens per run</p>
-          <b>≈ €0.0009</b>
-          <small>Calculated from the current 24-record sample.</small>
-        </aside>
       </div>
       {assistantOpen && (
         <PromptAssistantPane
@@ -3207,18 +3202,22 @@ function Builder() {
                     ? "Dataverse"
                     : "Local demo"}
               </span>
-              <Button
+              <ToolbarButton
                 type="button"
-                variant="outline"
-                size="sm"
+                appearance="subtle"
+                icon={<Code />}
                 onClick={() => setRecipeOpen(!recipeOpen)}
               >
-                <Code data-icon="inline-start" />
                 {recipeOpen ? "Hide recipe" : "View recipe"}
-              </Button>
-              <Button size="sm" onClick={() => setTestRecordOpen(true)}>
+              </ToolbarButton>
+              <ToolbarButton
+                className="primary-command"
+                appearance="primary"
+                icon={<Play />}
+                onClick={() => setTestRecordOpen(true)}
+              >
                 Test with a record
-              </Button>
+              </ToolbarButton>
             </>
           }
         />
@@ -3712,14 +3711,14 @@ function Runs() {
           title="Runs"
           description="Inspect which recipe ran, which record it processed, and what result was written to Dataverse."
           actions={
-            <Button
-              variant="outline"
+            <ToolbarButton
+              appearance="subtle"
+              icon={<RefreshCw />}
               onClick={() => refetch()}
               disabled={isFetching}
             >
-              <RefreshCw data-icon="inline-start" />
               {isFetching ? "Refreshing" : "Refresh"}
-            </Button>
+            </ToolbarButton>
           }
         />
         <div className="run-summary">
@@ -3743,37 +3742,46 @@ function Runs() {
             {data?.live ? "Dataverse connected" : "Local demo"}
           </span>
         </div>
-        <div className="runs-table">
-          <div className="runs-head">
-            <span>Run</span>
-            <span>Configuration</span>
-            <span>Record</span>
-            <span>Status</span>
-            <span>Duration</span>
-            <span>Started</span>
-          </div>
-          {runs.map((run) => {
-            const status =
-              run.status === 100000000
-                ? "Successful"
-                : run.status === 100000001
-                  ? "Running"
-                  : "Error";
-            return (
-              <div className="runs-row" key={run.id}>
-                <span className="mono">{run.name}</span>
-                <span>{data?.configurations[0]?.name ?? "Summary"}</span>
-                <span>{run.accountName}</span>
-                <span
-                  className={status === "Successful" ? "run-ok" : "run-warn"}
-                >
-                  {status}
-                </span>
-                <span>{(run.latencyMs / 1000).toFixed(1)} s</span>
-                <span>{formatDate(run.timestamp)}</span>
-              </div>
-            );
-          })}
+        <div className="runs-table-surface">
+          <Table aria-label="Summary runs" className="runs-table" size="medium">
+            <TableHeader>
+              <TableRow>
+                <TableHeaderCell>Run</TableHeaderCell>
+                <TableHeaderCell>Configuration</TableHeaderCell>
+                <TableHeaderCell>Record</TableHeaderCell>
+                <TableHeaderCell>Status</TableHeaderCell>
+                <TableHeaderCell>Duration</TableHeaderCell>
+                <TableHeaderCell>Started</TableHeaderCell>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {runs.map((run) => {
+                const status =
+                  run.status === 100000000
+                    ? "Successful"
+                    : run.status === 100000001
+                      ? "Running"
+                      : "Error";
+                return (
+                  <TableRow key={run.id}>
+                    <TableCell><code>{run.name}</code></TableCell>
+                    <TableCell>{data?.configurations[0]?.name ?? "Summary"}</TableCell>
+                    <TableCell>{run.accountName}</TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={status === "Successful" ? "status-live" : "status-draft"}
+                      >
+                        {status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{(run.latencyMs / 1000).toFixed(1)} s</TableCell>
+                    <TableCell>{formatDate(run.timestamp)}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
       </div>
     </Shell>

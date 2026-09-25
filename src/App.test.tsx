@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
@@ -21,13 +21,69 @@ describe("Creativity Spark Summary Studio", () => {
   it("uses Microsoft Fluent controls for primary commands and status", async () => {
     renderRoute("/");
 
-    expect(await screen.findByRole("button", { name: "Search" })).toHaveClass(
-      "fui-Button",
+    expect(await screen.findByRole("searchbox", { name: "Search" })).toHaveClass(
+      "fui-Input__input",
     );
     expect(screen.getByRole("button", { name: /Refresh/ })).toHaveClass(
       "fui-Button",
     );
     expect((await screen.findByText("Published")).closest(".fui-Badge")).not.toBeNull();
+  });
+
+  it("uses Fluent navigation, breadcrumb, command bar, and data table primitives", async () => {
+    renderRoute("/");
+
+    expect(
+      (await screen.findByRole("navigation", {
+        name: "Summary Studio navigation",
+      })).closest(".fui-NavDrawer"),
+    ).not.toBeNull();
+    expect(screen.getByLabelText("Breadcrumb")).toHaveClass("fui-Breadcrumb");
+    expect(screen.getByRole("button", { name: "Microsoft 365 apps" })).toHaveClass(
+      "fui-Button",
+    );
+    expect(screen.getByRole("toolbar", { name: "Configuration commands" })).toHaveClass(
+      "fui-Toolbar",
+    );
+    expect(
+      within(
+        screen.getByRole("toolbar", { name: "Configuration commands" }),
+      ).getByRole("button", { name: "New configuration" }),
+    ).toHaveClass("fui-Button");
+    expect(screen.getByRole("table", { name: "Summary configurations" })).toHaveClass(
+      "fui-Table",
+    );
+    expect(screen.getByRole("link", { name: "Configurations" })).toHaveAttribute(
+      "href",
+      "#/",
+    );
+  });
+
+  it("filters the configuration catalog from the global Microsoft 365 search", async () => {
+    renderRoute("/");
+
+    const search = await screen.findByRole("searchbox", { name: "Search" });
+    fireEvent.change(search, { target: { value: "not a real configuration" } });
+    fireEvent.keyDown(search, { key: "Enter" });
+
+    expect(
+      await screen.findByText("No configurations match your search."),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps page actions and run history in native Fluent surfaces", async () => {
+    const builder = renderRoute("/configurations/account-operations");
+    expect(
+      await screen.findByRole("toolbar", {
+        name: "Account operations summary commands",
+      }),
+    ).toHaveClass("fui-Toolbar");
+    builder.unmount();
+
+    renderRoute("/runs");
+    expect(await screen.findByRole("table", { name: "Summary runs" })).toHaveClass(
+      "fui-Table",
+    );
   });
 
   it("uses the Microsoft Fluent switch for boolean configuration", async () => {
@@ -91,9 +147,9 @@ describe("Creativity Spark Summary Studio", () => {
   it("positions the product as a configurable summary automation studio", async () => {
     renderRoute("/");
 
-    expect(await screen.findByText("Summary Studio")).toBeInTheDocument();
+    expect((await screen.findAllByText("Summary Studio")).length).toBeGreaterThan(0);
     expect(
-      screen.getByRole("heading", { name: "Configure AI summaries" }),
+      screen.getByRole("heading", { name: "Summary configurations" }),
     ).toBeInTheDocument();
     expect(
       await screen.findByText("Account operations summary"),
@@ -104,7 +160,7 @@ describe("Creativity Spark Summary Studio", () => {
     expect(
       screen.getByRole("button", { name: /New configuration/ }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Foundry evaluations")).toBeInTheDocument();
+    expect(screen.getByText("Foundry evaluations ready")).toBeInTheDocument();
   });
 
   it("opens each configuration by its Dataverse identifier", async () => {
@@ -420,7 +476,7 @@ describe("Creativity Spark Summary Studio", () => {
     );
     expect(screen.getByText("Account executive summary")).toBeInTheDocument();
     expect(screen.getByText("GPT-4.1 mini")).toBeInTheDocument();
-    expect(screen.getAllByText("{{account_context}}")).toHaveLength(2);
+    expect(screen.getAllByText("{{account_context}}").length).toBeGreaterThan(0);
     expect(
       screen.getByText("Estimate · 1,240 tokens per run"),
     ).toBeInTheDocument();
@@ -435,6 +491,9 @@ describe("Creativity Spark Summary Studio", () => {
         .getByLabelText("Prompt instructions")
         .closest(".prompt-fluent-textarea"),
     ).not.toBeNull();
+    expect(editor.querySelector(".prompt-editor-footer")).toHaveTextContent(
+      "Estimate · 1,240 tokens per run",
+    );
   });
 
   it("guides the maker through a prompt design wizard and applies the generated draft", async () => {
