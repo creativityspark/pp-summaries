@@ -133,6 +133,31 @@ export function buildConfigurationPayload(draft: SummaryConfigurationDraft): Rec
   return payload;
 }
 
+export function buildDraftConfigurationPayload(draft: SummaryConfigurationDraft): Record<string, unknown> {
+  return {
+    ...buildConfigurationPayload(draft),
+    csp_enabled: false,
+    csp_status: 100000000,
+    statecode: 0,
+  };
+}
+
+export function validateSummaryConfiguration(draft: SummaryConfigurationDraft): string[] {
+  const errors: string[] = [];
+  if (!draft.name.trim()) errors.push("Give this summary a name.");
+  if (!draft.entity.trim()) errors.push("Select a source table.");
+  if (draft.sourceFields.length === 0) errors.push("Select at least one source field.");
+  if (!draft.promptId.trim()) errors.push("Select an AI Prompt.");
+  if (!draft.fetchXml.trim().startsWith("<fetch")) errors.push("Provide valid record-selection FetchXML.");
+  if (!draft.relatedFetchXml.trim().startsWith("<fetch")) errors.push("Provide valid context FetchXML.");
+  else if (draft.mode === 100000000 && !draft.relatedFetchXml.includes("{{recordId}}")) errors.push("The context FetchXML must include {{recordId}}.");
+  if (!draft.outputEntity.trim()) errors.push("Select a destination table.");
+  if (!draft.outputField.trim()) errors.push("Select a destination column.");
+  if (draft.triggerType === "dataverse.update" && draft.triggerColumns.length === 0) errors.push("Select at least one trigger column.");
+  if (draft.triggerType === "dataverse.update" && draft.triggerColumns.includes(draft.outputField)) errors.push("Remove the destination column from the trigger to prevent a loop.");
+  return errors;
+}
+
 export function buildPublishSignal(): Record<string, unknown> {
   return { statuscode: 787000001 };
 }

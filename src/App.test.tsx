@@ -29,6 +29,20 @@ describe("Creativity Spark Summary Studio", () => {
     expect(screen.getByText("Foundry evaluations")).toBeInTheDocument();
   });
 
+  it("opens each configuration by its Dataverse identifier", async () => {
+    renderRoute("/");
+
+    const configurationLink = await screen.findByRole("link", { name: /Account operations summary/ });
+    expect(configurationLink).toHaveAttribute("href", "/configurations/mock-config");
+  });
+
+  it("starts a clean draft on the new configuration route", async () => {
+    renderRoute("/configurations/new");
+
+    expect(await screen.findByRole("heading", { name: "New summary" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Account operations summary" })).not.toBeInTheDocument();
+  });
+
   it("exposes the five decisions required to define a summary", async () => {
     renderRoute("/configurations/account-operations");
 

@@ -189,6 +189,22 @@ export function useUpdateStudioConfiguration() {
   });
 }
 
+export function useCreateStudioConfiguration() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (changes: Record<string, unknown>) => {
+      if (!isPowerAppsRuntime()) return "mock-new-config";
+      const { Csp_aisummaryconfigsService } = await import("@/generated/services/Csp_aisummaryconfigsService");
+      const result = await Csp_aisummaryconfigsService.create(changes as never);
+      const data = result.data as unknown as Record<string, unknown> | undefined;
+      const id = String(data?.csp_aisummaryconfigid ?? "");
+      if (!id) throw new Error("Dataverse did not return the new summary configuration identifier.");
+      return id;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: runtimeKey }),
+  });
+}
+
 export function useUpdateStudioPrompt() {
   const queryClient = useQueryClient();
   return useMutation({

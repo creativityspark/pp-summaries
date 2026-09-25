@@ -7,6 +7,7 @@ import {
   compileRecipe,
   type SummaryConfigurationDraft,
 } from "./summaryConfiguration";
+import * as summaryConfiguration from "./summaryConfiguration";
 
 const draft: SummaryConfigurationDraft = {
   name: "Account operations summary",
@@ -34,6 +35,42 @@ const draft: SummaryConfigurationDraft = {
 };
 
 describe("summary configuration persistence", () => {
+  it("builds a disabled draft row without sending the publish signal", () => {
+    const buildDraft = (summaryConfiguration as unknown as {
+      buildDraftConfigurationPayload?: (value: SummaryConfigurationDraft) => Record<string, unknown>;
+    }).buildDraftConfigurationPayload;
+
+    expect(buildDraft).toBeTypeOf("function");
+    expect(buildDraft?.(draft)).toMatchObject({
+      csp_name: "Account operations summary",
+      csp_enabled: false,
+      csp_status: 100000000,
+    });
+    expect(buildDraft?.(draft)).not.toHaveProperty("statuscode");
+  });
+
+  it("reports the fields that would prevent a configuration from publishing", () => {
+    const validate = (summaryConfiguration as unknown as {
+      validateSummaryConfiguration?: (value: SummaryConfigurationDraft) => string[];
+    }).validateSummaryConfiguration;
+
+    expect(validate).toBeTypeOf("function");
+    expect(validate?.({
+      ...draft,
+      name: " ",
+      sourceFields: [],
+      promptId: "",
+      relatedFetchXml: "<fetch><entity name=\"account\" /></fetch>",
+      outputField: "",
+    })).toEqual([
+      "Give this summary a name.",
+      "Select at least one source field.",
+      "Select an AI Prompt.",
+      "The context FetchXML must include {{recordId}}.",
+      "Select a destination column.",
+    ]);
+  });
+
   it("compiles related-record filters inside the per-record context FetchXML", () => {
     const xml = buildContextFetchXml("account", ["name"], [{
       entity: "activitypointer",

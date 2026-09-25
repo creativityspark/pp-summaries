@@ -20,15 +20,15 @@ import { Settings20Regular as Settings } from "@fluentui/react-icons/svg/setting
 import { Sparkle20Regular as Sparkles } from "@fluentui/react-icons/svg/sparkle";
 import { Target20Regular as Target } from "@fluentui/react-icons/svg/target";
 import { WindowConsole20Regular as Code } from "@fluentui/react-icons/svg/window-console";
-import { Link, NavLink, Route, Routes, useNavigate } from "react-router-dom";
+import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { VisualFilterBuilder } from "@/components/VisualFilterBuilder";
 import { cn } from "@/lib/utils";
-import { buildConfigurationPayload, buildContextFetchXml, buildPublishSignal, buildRecordSelectionFetchXml, compileRecipe, getTargetEntityIdentity, type SummaryConfigurationDraft } from "@/lib/summaryConfiguration";
-import { useStudioRuntime, useUpdateStudioConfiguration, useUpdateStudioPrompt, type StudioAccount, type StudioConfiguration, type StudioPrompt } from "@/hooks/useStudioRuntime";
+import { buildConfigurationPayload, buildContextFetchXml, buildDraftConfigurationPayload, buildPublishSignal, buildRecordSelectionFetchXml, compileRecipe, getTargetEntityIdentity, validateSummaryConfiguration, type SummaryConfigurationDraft } from "@/lib/summaryConfiguration";
+import { useCreateStudioConfiguration, useStudioRuntime, useUpdateStudioConfiguration, useUpdateStudioPrompt, type StudioAccount, type StudioConfiguration, type StudioPrompt } from "@/hooks/useStudioRuntime";
 import { useSystemViews } from "@/hooks/useSystemViews";
 import { useUserViews } from "@/hooks/useUserViews";
 
@@ -94,7 +94,7 @@ function Overview() {
   return <Shell><div className="studio-page">
     <section className="compiler-hero compiler-hero-compact">
       <div className="hero-compact-copy"><p className="micro-label text-brand-cyan">Summary Studio · declarative configuration</p><h1>Configure AI summaries</h1><p>Define context, prompt, destination, and execution in a single Dataverse recipe.</p></div>
-      <div className="hero-compact-actions"><Button asChild className="bg-brand-cyan text-brand-navy hover:bg-brand-cyan/90"><Link to="/configurations/new"><Sparkles data-icon="inline-start" />New configuration</Link></Button><Link to="/configurations/account-operations" className="hero-link">Open recipe <ArrowRight /></Link></div>
+      <div className="hero-compact-actions"><Button asChild className="bg-brand-cyan text-brand-navy hover:bg-brand-cyan/90"><Link to="/configurations/new"><Sparkles data-icon="inline-start" />New configuration</Link></Button>{configurations[0] && <Link to={`/configurations/${configurations[0].id}`} className="hero-link">Open recipe <ArrowRight /></Link>}</div>
       <div className="compiler-pipeline" aria-label="Summary recipe and Power Platform components"><span><Braces /><b>Recipe</b><small>context + rules</small></span><ChevronRight /><span><Database /><b>Dataverse</b><small>configuration</small></span><ChevronRight /><span><Bot /><b>AI Prompt</b><small>instructions</small></span><ChevronRight /><span><Flow /><b>Backend</b><small>materialization</small></span></div>
     </section>
 
@@ -104,7 +104,7 @@ function Overview() {
       <div className="section-heading"><div><p className="micro-label text-muted-foreground">Catalog</p><h2>Summary configurations</h2></div><div className="flex gap-2"><Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching}><RefreshCw data-icon="inline-start" />{isFetching ? "Refreshing" : "Refresh"}</Button><Button asChild size="sm"><Link to="/configurations/new"><Sparkles data-icon="inline-start" />Create summary</Link></Button></div></div>
       <div className="config-table">
         <div className="config-table-head"><span>Configuration</span><span>Source and destination</span><span>Trigger</span><span>Activity</span><span>Status</span><span /></div>
-        {configurations.map((item, index) => <Link className="config-row" to="/configurations/account-operations" key={item.id || item.name}>
+        {configurations.map((item, index) => <Link className="config-row" to={`/configurations/${item.id}`} key={item.id || item.name}>
           <div className="flex min-w-0 items-center gap-3"><span className={cn("entity-icon", index === 1 && "violet", index === 2 && "green", index === 3 && "amber")}><Database /></span><span className="min-w-0"><b>{item.name}</b><small>{item.promptName || "AI Prompt"}</small></span></div>
           <div><b>{item.entity === "account" ? "Account" : item.entity}</b><small>{item.outputEntity}.{item.outputField}</small></div><div><b>{item.mode === 100000000 ? "On update" : "Scheduled"}</b><small>{item.flowName || "Flow pending"}</small></div><div><b>{runtime?.runs.length ?? 0} runs</b><small>{item.lastRun ? "Activity recorded" : "Not run"}</small></div><div><Badge variant="outline" className={item.status === 100000001 ? "status-live" : "status-draft"}>{item.status === 100000001 ? "Published" : "Draft"}</Badge></div><ChevronRight className="size-4 text-muted-foreground" />
         </Link>)}
@@ -225,11 +225,11 @@ function ExecutionStep({ draft, onChange }: { draft: BuilderDraft; onChange: (ch
   </div>;
 }
 
-function ReviewStep({ draft }: { draft: BuilderDraft }) {
+function ReviewStep({ draft, validationErrors }: { draft: BuilderDraft; validationErrors: string[] }) {
   const trigger = triggerPresentation(draft.triggerType, draft.triggerColumns);
   return <div className="editor-section"><SectionIntro number="05" title="Review and publish" text="The recipe is complete. Publishing creates or updates only the assets required by the solution." />
     <div className="review-grid"><ReviewCard icon={<Database />} title="Data" value="Account + activities" detail={`${draft.sourceFields.length} fields · 1 relationship`} /><ReviewCard icon={<Bot />} title="Generation" value={draft.promptName} detail={`${draft.model} · 2 inputs · English`} /><ReviewCard icon={<Target />} title="Destination" value={`${draft.outputEntity}.${draft.outputField}`} detail="Overwrite · metadata enabled" /><ReviewCard icon={<Flow />} title="Execution" value={trigger.label} detail={draft.triggerType === "dataverse.update" ? "Loop prevention prepared" : trigger.detail} /></div>
-    <div className="publish-contract"><div><p className="field-caption">Prepared assets</p><div className="asset-list"><span><CheckCircle />1 configuration record <code>csp_aisummaryconfig</code></span><span><CheckCircle />1 versioned definition for the flow generator <code>{draft.flowName || "csp_SUM_AccountOperations_v3"}</code></span><span><LinkIcon />1 binding to an existing AI Prompt <code>{draft.promptKey}</code></span></div></div><aside><p><CheckCircle /> Validation complete</p><small>Valid schema; flow materialization is handled by the backend.</small></aside></div>
+    <div className="publish-contract"><div><p className="field-caption">Prepared assets</p><div className="asset-list"><span><CheckCircle />1 configuration record <code>csp_aisummaryconfig</code></span><span><CheckCircle />1 versioned definition for the flow generator <code>{draft.flowName || "Generated after publishing"}</code></span><span><LinkIcon />1 binding to an existing AI Prompt <code>{draft.promptKey || "Not selected"}</code></span></div></div><aside aria-live="polite">{validationErrors.length === 0 ? <><p><CheckCircle /> Validation complete</p><small>Valid schema; flow materialization is handled by the backend.</small></> : <><p>Resolve {validationErrors.length} item{validationErrors.length === 1 ? "" : "s"}</p><ul className="mt-2 list-disc space-y-1 pl-4 text-xs">{validationErrors.map((error) => <li key={error}>{error}</li>)}</ul></>}</aside></div>
   </div>;
 }
 
@@ -318,22 +318,41 @@ function EditPane({ pane, current, options, onClose, onApply }: { pane: PaneKind
 
 function Builder() {
   const { data } = useStudioRuntime();
+  const { configurationId } = useParams();
+  const isNew = !configurationId;
+  const createConfiguration = useCreateStudioConfiguration();
   const updateConfiguration = useUpdateStudioConfiguration();
   const updatePrompt = useUpdateStudioPrompt();
-  const configuration = data?.configurations[0];
+  const configuration = configurationId === "account-operations"
+    ? data?.configurations[0]
+    : data?.configurations.find((item) => item.id === configurationId);
   const prompts = useMemo(() => data?.prompts ?? [], [data?.prompts]);
   const [step, setStep] = useState(0);
   const [recipeOpen, setRecipeOpen] = useState(false);
   const [pane, setPane] = useState<PaneKind | null>(null);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [draft, setDraft] = useState<BuilderDraft>(() => draftFromConfiguration());
   const navigate = useNavigate();
   // Dataverse arrives asynchronously after the local-first editor has mounted.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { if (configuration) setDraft(draftFromConfiguration(configuration, prompts)); }, [configuration, prompts]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (configuration) setDraft(draftFromConfiguration(configuration, prompts));
+    else if (isNew && prompts.length) setDraft((current) => current.promptId ? current : draftFromConfiguration(undefined, prompts));
+  }, [configuration, isNew, prompts]);
   const save = async (next: BuilderDraft, changes: Record<string, unknown>) => {
     setDraft(next);
     setPane(null);
-    if (configuration) await updateConfiguration.mutateAsync({ id: configuration.id, changes: { ...changes, csp_configurationjson: JSON.stringify(compileRecipe(next)) } });
+    setValidationErrors([]);
+    if (configuration) {
+      await updateConfiguration.mutateAsync({ id: configuration.id, changes: { ...changes, csp_configurationjson: JSON.stringify(compileRecipe(next)) } });
+      return configuration.id;
+    }
+    if (isNew) {
+      const id = await createConfiguration.mutateAsync(buildDraftConfigurationPayload(next));
+      navigate(`/configurations/${id}`, { replace: true });
+      return id;
+    }
+    return undefined;
   };
   const paneOptions = pane === "prompt" ? prompts.map((item) => item.name) : pane ? paneContent[pane].options : [];
   const paneCurrent = pane === "table" ? ({ account: "Account · account", incident: "Case · incident", opportunity: "Opportunity · opportunity" }[draft.entity] ?? draft.entity)
@@ -374,23 +393,29 @@ function Builder() {
     setDraft((current) => ({ ...current, promptContent: content }));
   };
   const publish = async () => {
-    if (!draft.promptId) {
-      setStep(1);
+    const errors = validateSummaryConfiguration(draft);
+    setValidationErrors(errors);
+    if (errors.length) {
+      setStep(4);
       return;
     }
+    let id = configuration?.id;
     if (configuration) {
       await updateConfiguration.mutateAsync({ id: configuration.id, changes: buildConfigurationPayload(draft) });
-      await updateConfiguration.mutateAsync({ id: configuration.id, changes: buildPublishSignal() });
+    } else if (isNew) {
+      id = await createConfiguration.mutateAsync(buildConfigurationPayload(draft));
     }
-    navigate("/published/account-operations");
+    if (!id) return;
+    await updateConfiguration.mutateAsync({ id, changes: buildPublishSignal() });
+    navigate(`/published/${id}`);
   };
-  const content = [<DataStep onEdit={setPane} draft={draft} accounts={data?.accounts ?? []} />, <PromptStep key={draft.promptId} onEdit={setPane} draft={draft} onSavePrompt={savePromptContent} savingPrompt={updatePrompt.isPending} />, <DestinationStep draft={draft} onEdit={setPane} onChange={updateDraft} />, <ExecutionStep draft={draft} onChange={updateDraft} />, <ReviewStep draft={draft} />][step];
+  const content = [<DataStep onEdit={setPane} draft={draft} accounts={data?.accounts ?? []} />, <PromptStep key={draft.promptId} onEdit={setPane} draft={draft} onSavePrompt={savePromptContent} savingPrompt={updatePrompt.isPending} />, <DestinationStep draft={draft} onEdit={setPane} onChange={updateDraft} />, <ExecutionStep draft={draft} onChange={updateDraft} />, <ReviewStep draft={draft} validationErrors={validationErrors} />][step];
   return <Shell><div className="studio-page builder-page">
-    <PageHeader eyebrow={`Configuration · ${configuration?.version ?? "draft"}`} title={draft.name} description="" actions={<><span className="saved-state"><CheckCircle />{updateConfiguration.isPending ? "Saving…" : data?.live ? "Dataverse" : "Local demo"}</span><Button type="button" variant="outline" size="sm" onClick={() => setRecipeOpen(!recipeOpen)}><Code data-icon="inline-start" />{recipeOpen ? "Hide recipe" : "View recipe"}</Button><Button size="sm">Test with a record</Button></>} />
+    <PageHeader eyebrow={`Configuration · ${configuration?.version ?? "draft"}`} title={draft.name} description="" actions={<><span className="saved-state"><CheckCircle />{updateConfiguration.isPending || createConfiguration.isPending ? "Saving…" : data?.live ? "Dataverse" : "Local demo"}</span><Button type="button" variant="outline" size="sm" onClick={() => setRecipeOpen(!recipeOpen)}><Code data-icon="inline-start" />{recipeOpen ? "Hide recipe" : "View recipe"}</Button><Button size="sm">Test with a record</Button></>} />
     {recipeOpen && <div className="recipe-drawer"><CompiledRecipe step={step} draft={draft} title="Compiled recipe" /></div>}
     <div className="builder-layout">
       <aside className="step-rail bpf-process" aria-label="Configuration process"><div className="bpf-process-header"><span>Configuration process</span><em>Stage {step + 1} of {steps.length}</em></div><div className="bpf-stages">{steps.map((item, index) => { const Icon = item.icon; return <button type="button" key={item.title} onClick={() => setStep(index)} className={cn(step === index && "active", index < step && "complete")} aria-current={step === index ? "step" : undefined}><span>{index < step ? <Check /> : <Icon />}</span><div><small>0{index+1} · {item.stage}</small><b>{item.title}</b></div></button>; })}</div></aside>
-      <main className="editor-panel">{content}<footer className="editor-footer" aria-label="Process actions"><Button variant="ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>Previous</Button><span>Step {step + 1} of {steps.length}</span>{step < 4 ? <Button onClick={() => setStep(step + 1)}>Continue <ArrowRight data-icon="inline-end" /></Button> : <Button onClick={publish} disabled={updateConfiguration.isPending}><Flow data-icon="inline-start" />{updateConfiguration.isPending ? "Saving…" : "Publish configuration"}</Button>}</footer></main>
+      <main className="editor-panel">{content}<footer className="editor-footer" aria-label="Process actions"><Button variant="ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>Previous</Button><span>Step {step + 1} of {steps.length}</span>{step < 4 ? <Button onClick={() => setStep(step + 1)}>Continue <ArrowRight data-icon="inline-end" /></Button> : <Button onClick={publish} disabled={updateConfiguration.isPending || createConfiguration.isPending}><Flow data-icon="inline-start" />{updateConfiguration.isPending || createConfiguration.isPending ? "Saving…" : "Publish configuration"}</Button>}</footer></main>
     </div>
     {pane === "fields" ? <FieldsPane selectedFields={draft.sourceFields} onClose={() => setPane(null)} onApply={(fields) => updateDraft({ sourceFields: fields })} /> : pane === "records" ? <QueryDesignerPane purpose="records" targetEntity={draft.entity} fetchXml={draft.fetchXml} maxRecords={draft.maxRecords} onClose={() => setPane(null)} onApply={({ fetchXml, maxRecords, queryMode, viewId, viewType }) => save({ ...draft, fetchXml, maxRecords, queryMode }, { csp_fetchxml: fetchXml, csp_maxrecords: maxRecords, csp_querymode: queryMode, ...(viewId && viewType === "system" ? { csp_systemviewid: viewId } : {}), ...(viewId && viewType === "personal" ? { csp_userviewid: viewId } : {}) })} /> : pane === "relationships" ? <QueryDesignerPane purpose="related" targetEntity={String(draft.relationships[0]?.entity ?? "activitypointer")} fetchXml={relatedSelectionFetchXml(draft.relationships[0])} maxRecords={Number(draft.relationships[0]?.maxRecords ?? 12)} onClose={() => setPane(null)} onApply={({ fetchXml, maxRecords, queryMode, viewId, viewType }) => { const relationships = [{ ...(draft.relationships[0] ?? {}), entity: String(draft.relationships[0]?.entity ?? "activitypointer"), maxRecords, fetchXml, selectionMode: queryMode, ...(viewId ? { viewId, viewType } : {}) }]; const relatedFetchXml = buildContextFetchXml(draft.entity, draft.sourceFields, relationships); return save({ ...draft, relationships, relatedFetchXml }, { csp_relationships: JSON.stringify(relationships), csp_relatedfetchxml: relatedFetchXml }); }} /> : pane === "contextQuery" ? <ContextQueryPane fetchXml={draft.relatedFetchXml} onClose={() => setPane(null)} onApply={(relatedFetchXml) => save({ ...draft, relatedFetchXml }, { csp_relatedfetchxml: relatedFetchXml })} /> : pane && <EditPane pane={pane} current={paneCurrent} options={paneOptions.length ? paneOptions : paneContent[pane].options} onClose={() => setPane(null)} onApply={applyPane} />}
   </div></Shell>;
