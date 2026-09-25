@@ -52,41 +52,45 @@ const navItems = [
 function Shell({ children }: { children: ReactNode }) {
   const { data } = useStudioRuntime();
   const live = data?.live ?? false;
+  const [navigationCollapsed, setNavigationCollapsed] = useState(false);
   return (
     <div className="studio-shell">
       <a href="#main-content" className="skip-link">Skip to main content</a>
-      <aside className="studio-sidebar">
+      <aside className="studio-sidebar" data-collapsed={navigationCollapsed}>
         <div className="px-5 pt-6">
-          <div role="img" aria-label="Creativity Spark" className="flex items-center gap-3 py-1">
+          <div role="img" aria-label="Creativity Spark" className="brand-lockup flex items-center gap-3 py-1">
             <BrandMark className="h-[52px] w-[42px] shrink-0" />
-            <div className="min-w-0">
+            <div className="brand-copy min-w-0">
               <p className="whitespace-nowrap text-[21px] font-bold leading-none tracking-[-.035em] text-white">Creativity Spark</p>
               <p className="mt-2 whitespace-nowrap text-[8px] tracking-[.08em] text-white/65">We turn your ideas into brilliant apps</p>
             </div>
           </div>
-          <div className="mt-5 flex items-center gap-2 border-t border-white/10 pt-4">
+          <div className="product-lockup mt-5 flex items-center gap-2 border-t border-white/10 pt-4">
             <BrandMark className="size-6 shrink-0" />
-            <div><p className="text-[13px] font-semibold text-white">Summary Studio</p><p className="text-[9px] font-semibold uppercase tracking-[.18em] text-white/38">Power Platform compiler</p></div>
+            <div className="product-copy"><p className="text-[13px] font-semibold text-white">Summary Studio</p><p className="text-[9px] font-semibold uppercase tracking-[.18em] text-white/38">Power Platform compiler</p></div>
           </div>
         </div>
-        <nav className="mt-8 flex-1 border-t border-white/10 px-3 pt-7" aria-label="Primary navigation">
+        <nav className="mt-8 flex-1 border-t border-white/10 px-3 pt-7" aria-label="Summary Studio navigation">
           <p className="micro-label mb-2 px-3 text-white/28">Workspace</p>
           {navItems.map(({ to, label, icon: Icon, activeIcon: ActiveIcon, end }) => (
-            <NavLink key={to} to={to} end={end} className={({ isActive }) => cn("studio-nav", isActive && "studio-nav-active")}>
-              {({ isActive }) => <><span className="nav-icon">{isActive ? <ActiveIcon /> : <Icon />}</span><span className="flex-1">{label}</span>{isActive && <i />}</>}
+            <NavLink key={to} to={to} end={end} aria-label={label} title={navigationCollapsed ? label : undefined} className={({ isActive }) => cn("studio-nav", isActive && "studio-nav-active")}>
+              {({ isActive }) => <><span className="nav-icon">{isActive ? <ActiveIcon /> : <Icon />}</span><span className="nav-label flex-1">{label}</span>{isActive && <i />}</>}
             </NavLink>
           ))}
         </nav>
-        <div className="mx-4 mb-4 rounded-xl border border-white/10 bg-white/[.035] p-3">
+        <div className="environment-card mx-4 mb-4 rounded-xl border border-white/10 bg-white/[.035] p-3">
           <div className="flex items-center gap-2 text-[10px] text-white/50"><span className="size-1.5 rounded-full bg-emerald-400" />Demo environment</div>
           <p className="mt-2 font-mono text-[9px] text-white/34">spark-tools-dev.crm4</p>
         </div>
-        <div className="m-4 mt-0 border-t border-white/10 pt-4">
+        <div className="user-card m-4 mt-0 border-t border-white/10 pt-4">
           <div className="flex items-center gap-3"><Avatar className="size-8 border border-white/10"><AvatarFallback className="bg-brand-blue text-[10px] font-semibold text-white">OF</AvatarFallback></Avatar><div className="min-w-0 flex-1"><p className="truncate text-[11px] font-medium text-white">Oscar Fuentes</p><p className="text-[9px] text-white/35">Maker · administrator</p></div><Settings className="size-4 text-white/30" /></div>
         </div>
+        <button className="nav-collapse" type="button" aria-label={navigationCollapsed ? "Expand navigation" : "Collapse navigation"} onClick={() => setNavigationCollapsed((value) => !value)}>
+          <ChevronRight />
+        </button>
       </aside>
       <main id="main-content" className="min-w-0 flex-1 overflow-x-hidden">
-        <header className="studio-topbar">
+        <header className="studio-topbar" role="toolbar" aria-label="Application commands">
           <div className="flex items-center gap-3 text-xs text-muted-foreground"><span className="font-medium text-foreground">AI Summaries in Dataverse</span><ChevronRight className="size-3.5" /><span>Above and Beyond</span></div>
           <div className="flex items-center gap-3"><span className="hidden items-center gap-2 text-[10px] text-muted-foreground md:flex"><span className="size-1.5 rounded-full bg-emerald-500" />{live ? "Dataverse connected" : "Local fallback"}</span><Button variant="outline" size="sm"><Search data-icon="inline-start" />Search</Button></div>
         </header>
@@ -257,7 +261,7 @@ function PromptStep({ onEdit, draft, onSavePrompt, savingPrompt }: { onEdit: (pa
 
   return <div className="editor-section"><SectionIntro number="02" title="Prompt and model" text="Keep the maker experience simple without hiding the architecture and governance decisions that matter." />
     <div className="grid gap-4 md:grid-cols-[1fr_220px]"><LabeledField label="AI Prompt"><button type="button" className="field-control w-full text-left" aria-label="Edit AI Prompt" onClick={() => onEdit("prompt")}><Bot /><span><b>{draft.promptName}</b><code>{draft.promptKey}</code></span><ChevronRight /></button></LabeledField><LabeledField label="Model"><button type="button" className="field-control compact w-full text-left" aria-label="Edit model" onClick={() => onEdit("model")}><Sparkles /><span><b>{draft.model.replace("gpt-", "GPT-").replace("-mini", " mini")}</b><code>EU Data Zone</code></span></button></LabeledField></div>
-    <div className="studio-field"><span>Prompt instructions</span><div className="prompt-instructions-editor" role="group" aria-label="Prompt instructions editor"><div className="prompt-editor-assistant"><span><Sparkles /></span><p><b>Prompt assistant</b><small>Build from purpose, audience, format, and the active Dataverse context.</small></p><Button type="button" variant="outline" size="sm" onClick={() => setAssistantOpen(true)}><Sparkles data-icon="inline-start" />Design with assistant</Button></div><textarea className="min-h-[220px] w-full resize-none bg-transparent px-3 py-3 font-mono text-sm leading-6 outline-none" value={promptContent} onChange={(event) => setPromptContent(event.target.value)} aria-label="Prompt instructions" /><div className="prompt-editor-footer"><code>{"{{account_context}}"}</code><span>Dataverse AI Prompt</span><Button type="button" size="sm" variant="outline" disabled={savingPrompt || !draft.promptId || promptContent === draft.promptContent} onClick={() => onSavePrompt(promptContent)}>{savingPrompt ? "Saving prompt…" : "Save prompt"}</Button></div></div><small>Changes are saved to the selected AI Prompt record in Dataverse.</small></div>
+    <div className="studio-field"><span>Prompt instructions</span><div className="prompt-instructions-editor" role="group" aria-label="Prompt instructions editor"><div className="prompt-editor-assistant"><span><Sparkles /></span><p><b>Prompt assistant</b><small>Build from purpose, audience, format, and the active Dataverse context.</small></p><Button type="button" variant="outline" size="sm" onClick={() => setAssistantOpen(true)}><Sparkles data-icon="inline-start" />Design with assistant</Button></div><textarea className="min-h-[190px] w-full resize-none bg-transparent px-3 py-3 font-mono text-sm leading-6 outline-none" value={promptContent} onChange={(event) => setPromptContent(event.target.value)} aria-label="Prompt instructions" /><div className="prompt-editor-footer"><code>{"{{account_context}}"}</code><span>Dataverse AI Prompt</span><Button type="button" size="sm" variant="outline" disabled={savingPrompt || !draft.promptId || promptContent === draft.promptContent} onClick={() => onSavePrompt(promptContent)}>{savingPrompt ? "Saving prompt…" : "Save prompt"}</Button></div></div><small>Changes are saved to the selected AI Prompt record in Dataverse.</small></div>
     <div className="input-grid"><div><p className="field-caption">Runtime inputs</p><span><Database />{"{{account_context}}"}<small>JSON · compiled from FetchXML</small></span><span><Clock />{"{{generated_at}}"}<small>DateTime · Europe/Madrid</small></span></div><aside><p>Estimate · 1,240 tokens per run</p><b>≈ €0.0009</b><small>Calculated from the current 24-record sample.</small></aside></div>
     {assistantOpen && <PromptAssistantPane draft={draft} onClose={() => setAssistantOpen(false)} onApply={(prompt) => { setPromptContent(prompt); setAssistantOpen(false); }} />}
   </div>;

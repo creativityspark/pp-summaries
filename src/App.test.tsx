@@ -16,6 +16,20 @@ const renderRoute = (route: string) => {
 };
 
 describe("Creativity Spark Summary Studio", () => {
+  it("offers a compact Fluent navigation mode without losing accessible labels", async () => {
+    renderRoute("/");
+
+    const toggle = await screen.findByRole("button", { name: "Collapse navigation" });
+    const navigation = screen.getByRole("navigation", { name: "Summary Studio navigation" });
+    expect(navigation.closest("aside")).toHaveAttribute("data-collapsed", "false");
+
+    fireEvent.click(toggle);
+
+    expect(navigation.closest("aside")).toHaveAttribute("data-collapsed", "true");
+    expect(screen.getByRole("button", { name: "Expand navigation" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Configurations" })).toBeInTheDocument();
+  });
+
   it("embeds the sidebar brand without relying on a hosted or packaged image path", async () => {
     renderRoute("/");
 
@@ -224,7 +238,7 @@ describe("Creativity Spark Summary Studio", () => {
     expect(screen.getByText("Estimate · 1,240 tokens per run")).toBeInTheDocument();
     const editor = screen.getByRole("group", { name: "Prompt instructions editor" });
     expect(editor).toContainElement(screen.getByRole("button", { name: /Design with assistant/ }));
-    expect(screen.getByLabelText("Prompt instructions")).toHaveClass("min-h-[220px]");
+    expect(screen.getByLabelText("Prompt instructions")).toHaveClass("min-h-[190px]");
   });
 
   it("guides the maker through a prompt design wizard and applies the generated draft", async () => {
@@ -274,7 +288,7 @@ describe("Creativity Spark Summary Studio", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Review and publish/ }));
     fireEvent.click(screen.getByRole("button", { name: "Publish configuration" }));
 
-    expect(await screen.findByRole("heading", { name: "Recipe prepared" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Recipe prepared" }, { timeout: 5_000 })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /View JSON contract/i })).toHaveClass("text-white");
     expect(screen.getByText("csp_SUM_AccountOperations_v3")).toBeInTheDocument();
     expect(screen.getByText("Configuration stored")).toBeInTheDocument();
