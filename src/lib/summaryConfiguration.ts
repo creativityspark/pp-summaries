@@ -1,8 +1,11 @@
 export type SummaryConfigurationDraft = {
   name: string;
   entity: string;
+  entitySetName?: string;
+  entityIdField?: string;
   sourceFields: string[];
   outputEntity: string;
+  outputEntitySetName?: string;
   outputField: string;
   model: string;
   mode: number;
@@ -18,10 +21,150 @@ export type SummaryConfigurationDraft = {
   preserveHistory: boolean;
   saveMetadata: boolean;
   queryMode: number;
+  systemViewId?: string;
+  userViewId?: string;
   maxRecords: number;
   fetchXml: string;
   relatedFetchXml: string;
 };
+
+export interface DataverseTableMetadata {
+  logicalName: string;
+  entitySetName: string;
+  primaryIdAttribute: string;
+  displayName: string;
+}
+
+export interface DataverseColumnMetadata {
+  logicalName: string;
+  displayName: string;
+  type: string;
+  readable: boolean;
+  writable: boolean;
+}
+
+export interface DataverseRelationshipMetadata {
+  schemaName: string;
+  entity: string;
+  fromAttribute: string;
+  toAttribute: string;
+}
+
+function localizedLabel(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return "";
+  const label = value as Record<string, unknown>;
+  const userLabel = label.UserLocalizedLabel ?? label.userLocalizedLabel;
+  if (userLabel && typeof userLabel === "object") {
+    const text = (userLabel as Record<string, unknown>).Label ?? (userLabel as Record<string, unknown>).label;
+    if (typeof text === "string") return text;
+  }
+  const direct = label.Label ?? label.label;
+  return typeof direct === "string" ? direct : "";
+}
+
+function responseValue(value: unknown): unknown[] {
+  if (!value || typeof value !== "object") return [];
+  const root = value as Record<string, unknown>;
+  const data = root.data && typeof root.data === "object" ? root.data as Record<string, unknown> : root;
+  const items = data.value ?? data.Value;
+  return Array.isArray(items) ? items : [];
+}
+
+export function mapDataverseTables(value: unknown): DataverseTableMetadata[] {
+  return responseValue(value).map((item) => {
+    const record = item as Record<string, unknown>;
+    const raw = record.dynamicProperties && typeof record.dynamicProperties === "object"
+      ? record.dynamicProperties as Record<string, unknown>
+      : record;
+    const logicalName = String(raw.LogicalName ?? raw.logicalName ?? "");
+    const entitySetName = String(raw.EntitySetName ?? raw.entitySetName ?? "");
+    const primaryIdAttribute = String(raw.PrimaryIdAttribute ?? raw.primaryIdAttribute ?? `${logicalName}id`);
+    const displayName = localizedLabel(raw.DisplayCollectionName ?? raw.displayCollectionName) || logicalName;
+    return { logicalName, entitySetName, primaryIdAttribute, displayName };
+  }).filter((table) => table.logicalName && table.entitySetName)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+export function mapDataverseTableDefinition(value: unknown, fallback: DataverseTableMetadata): DataverseTableMetadata {
+  const root = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const data = root.data && typeof root.data === "object" ? root.data as Record<string, unknown> : root;
+  const records = mapDataverseRecords(value);
+  const raw = records[0] ?? data;
+  return {
+    logicalName: String(raw.LogicalName ?? raw.logicalName ?? fallback.logicalName),
+    entitySetName: String(raw.EntitySetName ?? raw.entitySetName ?? fallback.entitySetName),
+    primaryIdAttribute: String(raw.PrimaryIdAttribute ?? raw.primaryIdAttribute ?? fallback.primaryIdAttribute),
+    displayName: localizedLabel(raw.DisplayCollectionName ?? raw.displayCollectionName) || fallback.displayName,
+  };
+}
+
+export function mapDataverseColumns(value: unknown): DataverseColumnMetadata[] {
+  if (!value || typeof value !== "object") return [];
+  const root = value as Record<string, unknown>;
+  const data = root.data && typeof root.data === "object" ? root.data as Record<string, unknown> : root;
+  const attributes = data.Attributes ?? data.attributes;
+  if (!Array.isArray(attributes)) return [];
+  return attributes.map((item) => {
+    const raw = item as Record<string, unknown>;
+    const logicalName = String(raw.LogicalName ?? raw.logicalName ?? "");
+    return {
+      logicalName,
+      displayName: localizedLabel(raw.DisplayName ?? raw.displayName) || logicalName,
+      type: String(raw.AttributeType ?? raw.attributeType ?? raw.type ?? "Unknown"),
+      readable: raw.IsValidForRead === undefined ? raw.isValidForRead !== false : raw.IsValidForRead !== false,
+      writable: raw.IsValidForUpdate === true || raw.isValidForUpdate === true,
+    };
+  }).filter((column) => column.logicalName)
+    .sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+export function mapDataverseRecords(value: unknown): Array<Record<string, unknown>> {
+  return responseValue(value).map((item) => {
+    const raw = item as Record<string, unknown>;
+    const dynamic = raw.dynamicProperties;
+    return dynamic && typeof dynamic === "object" ? dynamic as Record<string, unknown> : raw;
+  });
+}
+
+export function mapDataverseRelationships(value: unknown, sourceEntity: string): DataverseRelationshipMetadata[] {
+  if (!value || typeof value !== "object") return [];
+  const root = value as Record<string, unknown>;
+  const data = root.data && typeof root.data === "object" ? root.data as Record<string, unknown> : root;
+  const oneToMany = data.OneToManyRelationships ?? data.oneToManyRelationships;
+  const manyToOne = data.ManyToOneRelationships ?? data.manyToOneRelationships;
+  const relationships: DataverseRelationshipMetadata[] = [];
+
+  if (Array.isArray(oneToMany)) {
+    for (const item of oneToMany) {
+      const raw = item as Record<string, unknown>;
+      const referencedEntity = String(raw.ReferencedEntity ?? raw.referencedEntity ?? "");
+      if (referencedEntity !== sourceEntity) continue;
+      relationships.push({
+        schemaName: String(raw.SchemaName ?? raw.schemaName ?? ""),
+        entity: String(raw.ReferencingEntity ?? raw.referencingEntity ?? ""),
+        fromAttribute: String(raw.ReferencingAttribute ?? raw.referencingAttribute ?? ""),
+        toAttribute: String(raw.ReferencedAttribute ?? raw.referencedAttribute ?? ""),
+      });
+    }
+  }
+
+  if (Array.isArray(manyToOne)) {
+    for (const item of manyToOne) {
+      const raw = item as Record<string, unknown>;
+      const referencingEntity = String(raw.ReferencingEntity ?? raw.referencingEntity ?? "");
+      if (referencingEntity !== sourceEntity) continue;
+      relationships.push({
+        schemaName: String(raw.SchemaName ?? raw.schemaName ?? ""),
+        entity: String(raw.ReferencedEntity ?? raw.referencedEntity ?? ""),
+        fromAttribute: String(raw.ReferencedAttribute ?? raw.referencedAttribute ?? ""),
+        toAttribute: String(raw.ReferencingAttribute ?? raw.referencingAttribute ?? ""),
+      });
+    }
+  }
+
+  return relationships.filter((relationship) => relationship.entity && relationship.fromAttribute && relationship.toAttribute);
+}
 
 const primaryIdByEntity: Record<string, string> = {
   account: "accountid",
@@ -42,8 +185,8 @@ export function getTargetEntityIdentity(entity: string) {
   };
 }
 
-export function buildRecordSelectionFetchXml(entity: string, maxRecords: number) {
-  const primaryId = primaryIdByEntity[entity] ?? `${entity}id`;
+export function buildRecordSelectionFetchXml(entity: string, maxRecords: number, primaryIdAttribute?: string) {
+  const primaryId = primaryIdAttribute || primaryIdByEntity[entity] || `${entity}id`;
   return `<fetch top="${maxRecords}"><entity name="${entity}"><attribute name="${primaryId}" /></entity></fetch>`;
 }
 
@@ -51,35 +194,46 @@ export function buildContextFetchXml(
   entity: string,
   fields: string[],
   relationships: Array<Record<string, unknown>>,
+  primaryIdAttribute?: string,
 ) {
-  const primaryId = primaryIdByEntity[entity] ?? `${entity}id`;
+  const primaryId = primaryIdAttribute || primaryIdByEntity[entity] || `${entity}id`;
   const attributes = Array.from(new Set([primaryId, ...fields]))
     .map((field) => `<attribute name="${field}" />`)
     .join("");
   const links = relationships.map((relationship, index) => {
     const relatedEntity = String(relationship.entity ?? "activitypointer");
     const windowDays = Number(relationship.windowDays ?? 30);
-    const from = relatedEntity === "activitypointer" ? "regardingobjectid" : `${entity}id`;
+    const from = String(relationship.fromAttribute ?? (relatedEntity === "activitypointer" ? "regardingobjectid" : `${entity}id`));
+    const to = String(relationship.toAttribute ?? primaryId);
+    const relatedFields = Array.isArray(relationship.fields)
+      ? relationship.fields.filter((field): field is string => typeof field === "string")
+      : ["activityid", "subject", "description"];
+    const relatedAttributes = relatedFields.map((field) => `<attribute name="${field}" />`).join("");
     const configuredQuery = String(relationship.fetchXml ?? "");
     const configuredFilter = configuredQuery.match(/<filter\b[\s\S]*?<\/filter>/i)?.[0];
     const configuredOrder = configuredQuery.match(/<order\b[^>]*\/?\s*>/i)?.[0] ?? "";
     const relatedFilter = configuredFilter ?? `<filter><condition attribute="createdon" operator="last-x-days" value="${windowDays}" /></filter>`;
-    return `<link-entity name="${relatedEntity}" from="${from}" to="${primaryId}" alias="related${index + 1}" link-type="outer"><attribute name="activityid" /><attribute name="subject" /><attribute name="description" />${relatedFilter}${configuredOrder}</link-entity>`;
+    return `<link-entity name="${relatedEntity}" from="${from}" to="${to}" alias="related${index + 1}" link-type="outer">${relatedAttributes}${relatedFilter}${configuredOrder}</link-entity>`;
   }).join("");
   return `<fetch><entity name="${entity}">${attributes}<filter><condition attribute="${primaryId}" operator="eq" value="{{recordId}}" /></filter>${links}</entity></fetch>`;
 }
 
 export function compileRecipe(draft: SummaryConfigurationDraft) {
+  const target = getTargetEntityIdentity(draft.entity);
   return {
     version: "3.0",
     source: {
       entity: draft.entity,
+      entitySetName: draft.entitySetName || target.entitySet,
+      primaryIdAttribute: draft.entityIdField || target.idField,
       fields: draft.sourceFields,
       relationships: draft.relationships,
       recordSelection: {
         queryMode: draft.queryMode,
         maxRecords: draft.maxRecords,
         fetchXml: draft.fetchXml,
+        ...(draft.queryMode === 100000000 && draft.systemViewId ? { viewId: draft.systemViewId, viewType: "system" } : {}),
+        ...(draft.queryMode === 100000001 && draft.userViewId ? { viewId: draft.userViewId, viewType: "personal" } : {}),
       },
       contextFetchXml: draft.relatedFetchXml,
     },
@@ -91,6 +245,7 @@ export function compileRecipe(draft: SummaryConfigurationDraft) {
     },
     output: {
       entity: draft.outputEntity,
+      entitySetName: draft.outputEntitySetName || getTargetEntityIdentity(draft.outputEntity).entitySet,
       field: draft.outputField,
       cache: draft.saveMetadata,
       preserveHistory: draft.preserveHistory,
@@ -107,8 +262,8 @@ export function buildConfigurationPayload(draft: SummaryConfigurationDraft): Rec
   const payload: Record<string, unknown> = {
     csp_name: draft.name,
     csp_targetentity: draft.entity,
-    csp_targetentityset: target.entitySet,
-    csp_targetentityidfield: target.idField,
+    csp_targetentityset: draft.entitySetName || target.entitySet,
+    csp_targetentityidfield: draft.entityIdField || target.idField,
     csp_sourcefields: JSON.stringify(draft.sourceFields),
     csp_relationships: JSON.stringify(draft.relationships),
     csp_inputmappings: JSON.stringify(draft.inputMappings),
@@ -126,6 +281,9 @@ export function buildConfigurationPayload(draft: SummaryConfigurationDraft): Rec
     csp_status: 100000001,
     csp_configurationjson: JSON.stringify(compileRecipe(draft)),
   };
+
+  if (draft.systemViewId) payload.csp_systemviewid = draft.systemViewId;
+  if (draft.userViewId) payload.csp_userviewid = draft.userViewId;
 
   if (draft.flowName) payload.csp_flowname = draft.flowName;
   if (draft.promptId) payload["csp_Prompt@odata.bind"] = `/csp_aiprompts(${draft.promptId})`;

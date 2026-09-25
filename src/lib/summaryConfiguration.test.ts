@@ -35,6 +35,92 @@ const draft: SummaryConfigurationDraft = {
 };
 
 describe("summary configuration persistence", () => {
+  it("maps the Dataverse table catalog into searchable table metadata", () => {
+    const mapTables = (summaryConfiguration as unknown as {
+      mapDataverseTables?: (value: unknown) => Array<Record<string, string>>;
+    }).mapDataverseTables;
+
+    expect(mapTables).toBeTypeOf("function");
+    expect(mapTables?.({ value: [
+      { LogicalName: "contact", EntitySetName: "contacts", PrimaryIdAttribute: "contactid", DisplayCollectionName: { UserLocalizedLabel: { Label: "Contacts" } } },
+      { LogicalName: "account", EntitySetName: "accounts", PrimaryIdAttribute: "accountid", DisplayCollectionName: { UserLocalizedLabel: { Label: "Accounts" } } },
+      { LogicalName: "internal_only" },
+    ] })).toEqual([
+      { logicalName: "account", entitySetName: "accounts", primaryIdAttribute: "accountid", displayName: "Accounts" },
+      { logicalName: "contact", entitySetName: "contacts", primaryIdAttribute: "contactid", displayName: "Contacts" },
+    ]);
+  });
+
+  it("enriches a selected table with its exact Dataverse identity metadata", () => {
+    const mapDefinition = (summaryConfiguration as unknown as {
+      mapDataverseTableDefinition?: (value: unknown, fallback: Record<string, string>) => Record<string, string>;
+    }).mapDataverseTableDefinition;
+    const fallback = { logicalName: "new_person", entitySetName: "new_people", primaryIdAttribute: "new_personid", displayName: "People" };
+
+    expect(mapDefinition).toBeTypeOf("function");
+    expect(mapDefinition?.({ data: {
+      LogicalName: "new_person",
+      EntitySetName: "new_people",
+      PrimaryIdAttribute: "new_personkey",
+      DisplayCollectionName: { UserLocalizedLabel: { Label: "People" } },
+    } }, fallback)).toEqual({
+      logicalName: "new_person",
+      entitySetName: "new_people",
+      primaryIdAttribute: "new_personkey",
+      displayName: "People",
+    });
+  });
+
+  it("maps Dataverse column metadata and keeps readable labels and capabilities", () => {
+    const mapColumns = (summaryConfiguration as unknown as {
+      mapDataverseColumns?: (value: unknown) => Array<Record<string, unknown>>;
+    }).mapDataverseColumns;
+
+    expect(mapColumns).toBeTypeOf("function");
+    expect(mapColumns?.({ Attributes: [
+      { LogicalName: "description", AttributeType: "Memo", IsValidForRead: true, IsValidForUpdate: true, DisplayName: { UserLocalizedLabel: { Label: "Description" } } },
+      { LogicalName: "accountid", AttributeType: "Uniqueidentifier", IsValidForRead: true, IsValidForUpdate: false, DisplayName: { UserLocalizedLabel: { Label: "Account" } } },
+    ] })).toEqual([
+      { logicalName: "accountid", displayName: "Account", type: "Uniqueidentifier", readable: true, writable: false },
+      { logicalName: "description", displayName: "Description", type: "Memo", readable: true, writable: true },
+    ]);
+  });
+
+  it("unwraps connector records returned through dynamicProperties", () => {
+    const mapRecords = (summaryConfiguration as unknown as {
+      mapDataverseRecords?: (value: unknown) => Array<Record<string, unknown>>;
+    }).mapDataverseRecords;
+
+    expect(mapRecords).toBeTypeOf("function");
+    expect(mapRecords?.({ value: [
+      { dynamicProperties: { accountid: "1", name: "Contoso" } },
+      { accountid: "2", name: "Northwind" },
+    ] })).toEqual([
+      { accountid: "1", name: "Contoso" },
+      { accountid: "2", name: "Northwind" },
+    ]);
+  });
+
+  it("maps Dataverse one-to-many relationships into FetchXML join metadata", () => {
+    const mapRelationships = (summaryConfiguration as unknown as {
+      mapDataverseRelationships?: (value: unknown, sourceEntity: string) => Array<Record<string, unknown>>;
+    }).mapDataverseRelationships;
+
+    expect(mapRelationships).toBeTypeOf("function");
+    expect(mapRelationships?.({ OneToManyRelationships: [{
+      SchemaName: "account_contacts",
+      ReferencedEntity: "account",
+      ReferencedAttribute: "accountid",
+      ReferencingEntity: "contact",
+      ReferencingAttribute: "parentcustomerid",
+    }] }, "account")).toEqual([{
+      schemaName: "account_contacts",
+      entity: "contact",
+      fromAttribute: "parentcustomerid",
+      toAttribute: "accountid",
+    }]);
+  });
+
   it("builds a disabled draft row without sending the publish signal", () => {
     const buildDraft = (summaryConfiguration as unknown as {
       buildDraftConfigurationPayload?: (value: SummaryConfigurationDraft) => Record<string, unknown>;
@@ -86,6 +172,8 @@ describe("summary configuration persistence", () => {
       version: "3.0",
       source: {
         entity: "account",
+        entitySetName: "accounts",
+        primaryIdAttribute: "accountid",
         fields: ["name", "revenue", "description"],
         relationships: [{ entity: "activitypointer", windowDays: 30, maxRecords: 12 }],
         recordSelection: {
@@ -101,7 +189,7 @@ describe("summary configuration persistence", () => {
         model: "gpt-4.1-mini",
         inputs: { account_context: "compiled.primaryAndRelated" },
       },
-      output: { entity: "account", field: "csp_aisummary", cache: true, preserveHistory: false },
+      output: { entity: "account", entitySetName: "accounts", field: "csp_aisummary", cache: true, preserveHistory: false },
       trigger: { type: "dataverse.update", columns: ["name", "revenue", "description"] },
     });
   });
@@ -136,6 +224,41 @@ describe("summary configuration persistence", () => {
     expect(JSON.parse(String(payload.csp_configurationjson))).toEqual(compileRecipe(draft));
   });
 
+  it("persists the exact entity set and primary id returned by Dataverse metadata", () => {
+    const payload = buildConfigurationPayload({
+      ...draft,
+      entity: "new_person",
+      entitySetName: "new_people",
+      entityIdField: "new_personkey",
+    });
+
+    expect(payload).toMatchObject({
+      csp_targetentity: "new_person",
+      csp_targetentityset: "new_people",
+      csp_targetentityidfield: "new_personkey",
+    });
+  });
+
+  it("keeps the exact destination entity set in the compiled recipe", () => {
+    const recipe = compileRecipe({
+      ...draft,
+      outputEntity: "new_person",
+      outputEntitySetName: "new_people",
+      outputField: "new_summary",
+    });
+
+    expect(recipe.output).toMatchObject({
+      entity: "new_person",
+      entitySetName: "new_people",
+      field: "new_summary",
+    });
+  });
+
+  it("keeps the selected Dataverse view in the compiled record selection", () => {
+    const recipe = compileRecipe({ ...draft, queryMode: 100000000, systemViewId: "view-123", userViewId: undefined });
+    expect(recipe.source.recordSelection).toMatchObject({ queryMode: 100000000, viewId: "view-123", viewType: "system" });
+  });
+
   it("builds separate FetchXML queries for record selection and per-record context", () => {
     expect(buildRecordSelectionFetchXml("account", 5000)).toContain('<entity name="account">');
     expect(buildRecordSelectionFetchXml("account", 5000)).toContain('<attribute name="accountid" />');
@@ -146,5 +269,24 @@ describe("summary configuration persistence", () => {
     expect(context).toContain('<condition attribute="accountid" operator="eq" value="{{recordId}}" />');
     expect(context).toContain('<attribute name="revenue" />');
     expect(context).toContain('<link-entity name="activitypointer"');
+  });
+
+  it("uses the primary id returned by metadata when building FetchXML", () => {
+    const build = buildRecordSelectionFetchXml as unknown as (entity: string, maxRecords: number, primaryId: string) => string;
+    expect(build("new_person", 25, "new_personkey")).toContain('<attribute name="new_personkey" />');
+  });
+
+  it("uses Dataverse relationship attributes when building linked context", () => {
+    const context = buildContextFetchXml("account", ["name"], [{
+      entity: "contact",
+      fromAttribute: "parentcustomerid",
+      toAttribute: "accountid",
+      fields: ["fullname", "emailaddress1"],
+      maxRecords: 10,
+    }], "accountid");
+
+    expect(context).toContain('<link-entity name="contact" from="parentcustomerid" to="accountid"');
+    expect(context).toContain('<attribute name="fullname" />');
+    expect(context).toContain('<attribute name="emailaddress1" />');
   });
 });

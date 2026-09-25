@@ -31,6 +31,8 @@ import { buildConfigurationPayload, buildContextFetchXml, buildDraftConfiguratio
 import { useCreateStudioConfiguration, useStudioRuntime, useUpdateStudioConfiguration, useUpdateStudioPrompt, type StudioAccount, type StudioConfiguration, type StudioPrompt } from "@/hooks/useStudioRuntime";
 import { useSystemViews } from "@/hooks/useSystemViews";
 import { useUserViews } from "@/hooks/useUserViews";
+import { useDataverseColumns, useDataverseRecordPreview, useDataverseRelationships, useDataverseTableMetadata, useDataverseTables } from "@/hooks/useDataverseCatalog";
+import type { DataverseRelationshipMetadata, DataverseTableMetadata } from "@/lib/summaryConfiguration";
 
 const LOGO = "https://99e46348.delivery.rocketcdn.me/wp-content/uploads/2024/10/creativity-spark-blanco.svg";
 const MARK = "/creativity-spark-mark.png";
@@ -138,22 +140,27 @@ function draftFromConfiguration(config?: StudioConfiguration, prompts: StudioPro
   const maxRecords = config?.maxRecords ?? 5000;
   return {
     name: config?.name ?? "New summary", entity,
+    entitySetName: config?.entitySetName ?? getTargetEntityIdentity(entity).entitySet,
+    entityIdField: config?.entityIdField ?? getTargetEntityIdentity(entity).idField,
     sourceFields,
-    outputEntity: config?.outputEntity ?? "account", outputField: config?.outputField ?? "csp_aisummary",
+    outputEntity: config?.outputEntity ?? "account", outputEntitySetName: config?.outputEntitySetName || getTargetEntityIdentity(config?.outputEntity ?? "account").entitySet, outputField: config?.outputField ?? "csp_aisummary",
     model: config?.model ?? prompt?.model ?? "gpt-4.1-mini", mode: config?.mode ?? 100000000,
     promptId: prompt?.id ?? "", promptName: prompt?.name ?? "Select AI Prompt",
     promptKey: prompt?.key ?? "", promptContent: prompt?.content ?? "", flowName: config?.flowName ?? "",
     relationships, inputMappings: config?.inputMappings ?? {},
     triggerColumns: config?.triggerColumns.length ? config.triggerColumns : ["name", "revenue", "description", "primarycontactid"],
     triggerType: "dataverse.update", preserveHistory: false, saveMetadata: true,
-    queryMode: config?.queryMode ?? 100000002, maxRecords,
-    fetchXml: config?.fetchXml || buildRecordSelectionFetchXml(entity, maxRecords),
-    relatedFetchXml: config?.relatedFetchXml || buildContextFetchXml(entity, sourceFields, relationships),
+    queryMode: config?.queryMode ?? 100000002, systemViewId: config?.systemViewId, userViewId: config?.userViewId, maxRecords,
+    fetchXml: config?.fetchXml || buildRecordSelectionFetchXml(entity, maxRecords, config?.entityIdField),
+    relatedFetchXml: config?.relatedFetchXml || buildContextFetchXml(entity, sourceFields, relationships, config?.entityIdField),
   };
 }
 
 function DataStep({ onEdit, draft, accounts }: { onEdit: (pane: PaneKind) => void; draft: BuilderDraft; accounts: StudioAccount[] }) {
-  const entityLabel = draft.entity === "account" ? "Accounts" : draft.entity === "incident" ? "Cases" : "Opportunities";
+  const tables = useDataverseTables();
+  const entityLabel = tables.data?.find((table) => table.logicalName === draft.entity)?.displayName ?? draft.entity;
+  const relatedEntity = String(draft.relationships[0]?.entity ?? "");
+  const relatedLabel = tables.data?.find((table) => table.logicalName === relatedEntity)?.displayName ?? relatedEntity;
   const relationshipCount = draft.relationships.length;
   const recordSelectionLabel = draft.queryMode === 100000000 ? "System view" : draft.queryMode === 100000001 ? "Personal view" : "Filters or FetchXML";
   const relatedMode = Number(draft.relationships[0]?.selectionMode ?? 100000002);
@@ -173,7 +180,7 @@ function DataStep({ onEdit, draft, accounts }: { onEdit: (pane: PaneKind) => voi
         <header><span>2</span><div><h3>Context for each record</h3><p>Control exactly what is passed to the selected AI Prompt.</p></div></header>
         <div className="configuration-list">
           <article><span className="configuration-icon"><Database /></span><div className="configuration-label"><b>Source fields</b><code>csp_sourcefields</code></div><div className="configuration-value configuration-tokens">{draft.sourceFields.map((field) => <code key={field}>{field}</code>)}</div><Button type="button" variant="outline" size="sm" aria-label="Configure source fields" onClick={() => onEdit("fields")}>Select fields</Button></article>
-          <article><span className="configuration-icon"><GitBranch /></span><div className="configuration-label"><b>Related records</b><code>csp_relationships</code></div><div className="configuration-value"><b>{relationshipCount ? relatedSelectionLabel : "No related records"}</b><code>{relationshipCount ? `${String(draft.relationships[0]?.entity ?? "activitypointer")} · 1:N` : "none"}</code></div><Button type="button" variant="outline" size="sm" aria-label="Configure related records" onClick={() => onEdit("relationships")}>Configure</Button></article>
+          <article><span className="configuration-icon"><GitBranch /></span><div className="configuration-label"><b>Related records</b><code>csp_relationships</code></div><div className="configuration-value"><b>{relationshipCount ? relatedSelectionLabel : "No related records"}</b><code>{relationshipCount ? `${relatedLabel} · ${relatedEntity}` : "none"}</code></div><Button type="button" variant="outline" size="sm" aria-label="Configure related records" onClick={() => onEdit("relationships")}>Configure</Button></article>
           <article><span className="configuration-icon"><Code /></span><div className="configuration-label"><b>Context query</b><code>csp_relatedfetchxml</code></div><div className="configuration-value"><b>FetchXML per record</b><small>{draft.sourceFields.length} fields · {relationshipCount} related table</small></div><Button type="button" variant="outline" size="sm" aria-label="Configure context FetchXML" onClick={() => onEdit("contextQuery")}>Edit FetchXML</Button></article>
         </div>
       </section>
@@ -197,9 +204,14 @@ function PromptStep({ onEdit, draft, onSavePrompt, savingPrompt }: { onEdit: (pa
 }
 
 function DestinationStep({ draft, onEdit, onChange }: { draft: BuilderDraft; onEdit: (pane: PaneKind) => void; onChange: (changes: Partial<BuilderDraft>) => void }) {
+  const tables = useDataverseTables();
+  const columns = useDataverseColumns(draft.outputEntity, draft.outputEntitySetName || getTargetEntityIdentity(draft.outputEntity).entitySet);
+  const sourceLabel = tables.data?.find((table) => table.logicalName === draft.entity)?.displayName ?? draft.entity;
+  const outputLabel = tables.data?.find((table) => table.logicalName === draft.outputEntity)?.displayName ?? draft.outputEntity;
+  const outputFieldLabel = columns.data?.find((column) => column.logicalName === draft.outputField)?.displayName ?? draft.outputField;
   return <div className="editor-section"><SectionIntro number="03" title="Destination" text="Write the summary back to Dataverse so it can be reused in views, forms, agents, and other automations." />
-    <div className="destination-map"><div><Database /><span><small>Source record</small><b>{draft.entity === "account" ? "Account" : draft.entity}</b><code>{draft.entity}.{draft.entity}id</code></span></div><ArrowRight /><div className="active"><Sparkles /><span><small>Generated result</small><b>Executive summary</b><code>{draft.outputEntity}.{draft.outputField}</code></span></div></div>
-    <div className="grid gap-4 md:grid-cols-2"><LabeledField label="Destination table"><button type="button" className="field-control w-full text-left" aria-label="Edit destination table" onClick={() => onEdit("outputTable")}><Database /><span><b>{draft.outputEntity === "account" ? "Account" : "Summary cache"}</b><code>{draft.outputEntity}</code></span><ChevronRight /></button></LabeledField><LabeledField label="Destination column"><button type="button" className="field-control w-full text-left" aria-label="Edit destination column" onClick={() => onEdit("outputField")}><Target /><span><b>{draft.outputField === "csp_aisummary" ? "AI summary" : draft.outputField === "description" ? "Description" : "Name"}</b><code>{draft.outputField}</code></span><ChevronRight /></button></LabeledField></div>
+    <div className="destination-map"><div><Database /><span><small>Source record</small><b>{sourceLabel}</b><code>{draft.entity}.{draft.entityIdField}</code></span></div><ArrowRight /><div className="active"><Sparkles /><span><small>Generated result</small><b>{outputFieldLabel}</b><code>{draft.outputEntity}.{draft.outputField}</code></span></div></div>
+    <div className="grid gap-4 md:grid-cols-2"><LabeledField label="Destination table"><button type="button" className="field-control w-full text-left" aria-label="Edit destination table" onClick={() => onEdit("outputTable")}><Database /><span><b>{outputLabel}</b><code>{draft.outputEntity}</code></span><ChevronRight /></button></LabeledField><LabeledField label="Destination column"><button type="button" className="field-control w-full text-left" aria-label="Edit destination column" onClick={() => onEdit("outputField")}><Target /><span><b>{outputFieldLabel}</b><code>{draft.outputField}</code></span><ChevronRight /></button></LabeledField></div>
     <div className="option-list"><button type="button" aria-pressed={!draft.preserveHistory} className={!draft.preserveHistory ? "selected" : ""} onClick={() => onChange({ preserveHistory: false })}><span className="radio-dot" /><div><b>Overwrite the current summary</b><small>Keep one current result on the source record.</small></div>{!draft.preserveHistory && <Check />}</button><button type="button" aria-pressed={draft.preserveHistory} className={draft.preserveHistory ? "selected" : ""} onClick={() => onChange({ preserveHistory: true })}><span className="radio-dot" /><div><b>Preserve history</b><small>Create a cache entry for every run.</small></div>{draft.preserveHistory && <Check />}</button></div>
     <div className="inline-setting"><div><b>Store generation metadata</b><small>Model, tokens, duration, and configuration version.</small></div><Switch checked={draft.saveMetadata} onCheckedChange={(checked) => onChange({ saveMetadata: checked })} aria-label="Store generation metadata" /></div>
   </div>;
@@ -240,7 +252,7 @@ function CompiledRecipe({ step, draft, title = "Recipe v3" }: { step: number; dr
   const status = ["context ready", "prompt bound", "destination valid", "flow prepared", "ready to publish"][step];
   return <aside className="compiled-panel"><div className="compiled-head"><div><p className="micro-label text-brand-cyan">Compiled view</p><h2>{title}</h2></div><span><i />{status}</span></div>
     <div className="recipe-line"><span>OBJECTIVE</span><b>{draft.name}</b></div>
-    <div className="recipe-code"><div><span>01</span><code>source</code><b>table · {draft.entity}</b></div><div><span>02</span><code>fields</code><b>{draft.sourceFields.length} selected</b></div><div><span>03</span><code>relation</code><b>activitypointer</b></div><div><span>04</span><code>prompt</code><b>{draft.promptKey}</b></div><div><span>05</span><code>model</code><b>{draft.model}</b></div><div><span>06</span><code>output</code><b>{draft.outputEntity}.{draft.outputField}</b></div><div><span>07</span><code>trigger</code><b>{draft.triggerType}</b></div></div>
+    <div className="recipe-code"><div><span>01</span><code>source</code><b>table · {draft.entity}</b></div><div><span>02</span><code>fields</code><b>{draft.sourceFields.length} selected</b></div><div><span>03</span><code>relation</code><b>{String(draft.relationships[0]?.entity ?? "none")}</b></div><div><span>04</span><code>prompt</code><b>{draft.promptKey}</b></div><div><span>05</span><code>model</code><b>{draft.model}</b></div><div><span>06</span><code>output</code><b>{draft.outputEntity}.{draft.outputField}</b></div><div><span>07</span><code>trigger</code><b>{draft.triggerType}</b></div></div>
     <div className="compile-summary"><p><span>Estimated context</span><b>1,240 tokens</b></p><p><span>Flow pattern</span><b>{triggerPresentation(draft.triggerType, draft.triggerColumns).pattern}</b></p><p><span>Components</span><b>3 assets</b></p></div>
     <div className="compiled-footer"><Code /><span><b>Valid JSON</b><small>summary-recipe.schema.json</small></span><button type="button">View JSON</button></div>
   </aside>;
@@ -259,16 +271,28 @@ const paneContent: Record<PaneKind, { title: string; eyebrow: string; value: str
   outputField: { title: "Destination column", eyebrow: "Summary destination", value: "AI summary · csp_aisummary", technical: "Dataverse column", options: ["AI summary · csp_aisummary", "Description · description", "Name · name"] },
 };
 
-const accountFieldOptions = [
-  ["name", "Name"], ["accountnumber", "Account number"], ["industrycode", "Industry"],
-  ["revenue", "Revenue"], ["description", "Description"], ["primarycontactid", "Primary contact"],
-  ["modifiedon", "Last modified"],
-] as const;
+function TableCatalogPane({ purpose, current, onClose, onApply }: { purpose: "source" | "destination"; current: string; onClose: () => void; onApply: (table: DataverseTableMetadata) => void }) {
+  const { data: tables = [], isLoading } = useDataverseTables();
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState(current);
+  const visible = tables.filter((table) => `${table.displayName} ${table.logicalName}`.toLowerCase().includes(search.toLowerCase()));
+  const selectedTable = tables.find((table) => table.logicalName === selected);
+  const selectedMetadata = useDataverseTableMetadata(selectedTable);
+  return <><button className="pane-scrim" type="button" aria-label="Close edit pane" onClick={onClose} /><aside className="edit-pane" aria-label={`Choose ${purpose} table`}><header><div><p className="micro-label text-brand-blue">Dataverse metadata</p><h2>{purpose === "source" ? "Source table" : "Destination table"}</h2></div><button type="button" aria-label="Close pane" onClick={onClose}>×</button></header><div className="pane-current"><span><Database /></span><div><small>Current table</small><b>{tables.find((table) => table.logicalName === current)?.displayName ?? current}</b><code>{current}</code></div></div><section><label className="studio-field"><span>Find a table</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search display or logical name" /></label><p className="field-caption mt-4">Available tables</p>{isLoading ? <p className="text-sm text-muted-foreground">Loading Dataverse tables…</p> : visible.map((table) => <button type="button" key={table.logicalName} aria-label={`${table.displayName} · ${table.logicalName}`} className={selected === table.logicalName ? "selected" : ""} onClick={() => setSelected(table.logicalName)}><span>{selected === table.logicalName ? <Check /> : null}</span><div><b>{table.displayName}</b><code>{table.logicalName} · {table.entitySetName}</code></div></button>)}</section><footer><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={!selectedMetadata.data || selectedMetadata.isFetching} onClick={() => selectedMetadata.data && onApply(selectedMetadata.data)}>{selectedMetadata.isFetching ? "Reading metadata…" : "Apply table"}</Button></footer></aside></>;
+}
 
-function FieldsPane({ selectedFields, onClose, onApply }: { selectedFields: string[]; onClose: () => void; onApply: (fields: string[]) => void }) {
+function FieldsPane({ entity, entitySetName, selectedFields, onClose, onApply }: { entity: string; entitySetName: string; selectedFields: string[]; onClose: () => void; onApply: (fields: string[]) => void }) {
+  const { data: columns = [], isLoading } = useDataverseColumns(entity, entitySetName);
   const [selected, setSelected] = useState(selectedFields);
   const toggle = (field: string) => setSelected((current) => current.includes(field) ? current.filter((item) => item !== field) : [...current, field]);
-  return <><button className="pane-scrim" type="button" aria-label="Close edit pane" onClick={onClose} /><aside className="edit-pane" aria-label="Edit selected fields"><header><div><p className="micro-label text-brand-blue">Summary context</p><h2>Selected fields</h2></div><button type="button" aria-label="Close pane" onClick={onClose}>×</button></header><div className="pane-current"><span><Database /></span><div><small>Current selection</small><b>{selected.length} Account fields</b><code>account</code></div></div><section><p className="field-caption">Available fields</p>{accountFieldOptions.map(([field, label]) => { const active = selected.includes(field); return <button type="button" key={field} aria-label={`${label} · ${field}`} aria-pressed={active} onClick={() => toggle(field)} className={active ? "selected" : ""}><span>{active ? <Check /> : null}</span><div><b>{label}</b><code>{field}</code></div></button>; })}</section><footer><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={() => onApply(selected)} disabled={selected.length === 0}>Apply changes</Button></footer></aside></>;
+  return <><button className="pane-scrim" type="button" aria-label="Close edit pane" onClick={onClose} /><aside className="edit-pane" aria-label="Choose source columns"><header><div><p className="micro-label text-brand-blue">Dataverse metadata</p><h2>Source columns</h2></div><button type="button" aria-label="Close pane" onClick={onClose}>×</button></header><div className="pane-current"><span><Database /></span><div><small>Current selection</small><b>{selected.length} columns</b><code>{entity}</code></div></div><section><p className="field-caption">Readable columns</p>{isLoading ? <p className="text-sm text-muted-foreground">Loading columns…</p> : columns.filter((column) => column.readable).map((column) => { const active = selected.includes(column.logicalName); return <button type="button" key={column.logicalName} aria-label={`${column.displayName} · ${column.logicalName}`} aria-pressed={active} onClick={() => toggle(column.logicalName)} className={active ? "selected" : ""}><span>{active ? <Check /> : null}</span><div><b>{column.displayName}</b><code>{column.logicalName} · {column.type}</code></div></button>; })}</section><footer><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={() => onApply(selected)} disabled={selected.length === 0}>Apply changes</Button></footer></aside></>;
+}
+
+function OutputFieldPane({ entity, entitySetName, current, onClose, onApply }: { entity: string; entitySetName: string; current: string; onClose: () => void; onApply: (field: string) => void }) {
+  const { data: columns = [], isLoading } = useDataverseColumns(entity, entitySetName);
+  const [selected, setSelected] = useState(current);
+  const compatible = columns.filter((column) => column.writable && ["String", "Memo"].includes(column.type));
+  return <><button className="pane-scrim" type="button" aria-label="Close edit pane" onClick={onClose} /><aside className="edit-pane" aria-label="Choose destination column"><header><div><p className="micro-label text-brand-blue">Writable Dataverse columns</p><h2>Destination column</h2></div><button type="button" aria-label="Close pane" onClick={onClose}>×</button></header><div className="pane-current"><span><Target /></span><div><small>Current column</small><b>{current}</b><code>{entity}.{current}</code></div></div><section><p className="field-caption">Text and multiline text</p>{isLoading ? <p className="text-sm text-muted-foreground">Loading columns…</p> : compatible.map((column) => <button type="button" key={column.logicalName} aria-label={`${column.displayName} · ${column.logicalName}`} className={selected === column.logicalName ? "selected" : ""} onClick={() => setSelected(column.logicalName)}><span>{selected === column.logicalName ? <Check /> : null}</span><div><b>{column.displayName}</b><code>{column.logicalName} · {column.type}</code></div></button>)}</section><footer><Button variant="outline" onClick={onClose}>Cancel</Button><Button disabled={!selected} onClick={() => onApply(selected)}>Apply column</Button></footer></aside></>;
 }
 
 type QueryDesignerMode = "filters" | "view" | "fetchxml";
@@ -276,17 +300,41 @@ type QueryDesignerMode = "filters" | "view" | "fetchxml";
 function relatedSelectionFetchXml(relationship?: Record<string, unknown>) {
   if (relationship?.fetchXml) return String(relationship.fetchXml);
   const days = Number(relationship?.windowDays ?? 30);
-  return `<fetch top="12">\n  <entity name="activitypointer">\n    <all-attributes />\n    <filter type="and">\n      <condition attribute="createdon" operator="last-x-days" value="${days}" />\n    </filter>\n    <order attribute="createdon" descending="true" />\n  </entity>\n</fetch>`;
+  const entity = String(relationship?.entity ?? "activitypointer");
+  return `<fetch top="12">\n  <entity name="${entity}">\n    <all-attributes />\n    <filter type="and">\n      <condition attribute="createdon" operator="last-x-days" value="${days}" />\n    </filter>\n    <order attribute="createdon" descending="true" />\n  </entity>\n</fetch>`;
 }
 
-function QueryDesignerPane({ purpose, targetEntity, fetchXml, maxRecords, onClose, onApply }: { purpose: "records" | "related"; targetEntity: string; fetchXml: string; maxRecords: number; onClose: () => void; onApply: (value: { fetchXml: string; maxRecords: number; queryMode: number; viewId?: string; viewType?: "system" | "personal" }) => void }) {
-  const [mode, setMode] = useState<QueryDesignerMode>("filters");
+type QueryDesignerResult = {
+  fetchXml: string;
+  maxRecords: number;
+  queryMode: number;
+  viewId?: string;
+  viewType?: "system" | "personal";
+  relatedTable?: DataverseTableMetadata;
+  relationship?: DataverseRelationshipMetadata;
+  fields?: string[];
+};
+
+function QueryDesignerPane({ purpose, targetEntity, entitySetName, sourceEntity, sourceEntitySetName, relationship: initialRelationship, queryMode = 100000002, initialViewId, initialViewType, fetchXml, maxRecords, onClose, onApply }: { purpose: "records" | "related"; targetEntity: string; entitySetName: string; sourceEntity?: string; sourceEntitySetName?: string; relationship?: Record<string, unknown>; queryMode?: number; initialViewId?: string; initialViewType?: "system" | "personal"; fetchXml: string; maxRecords: number; onClose: () => void; onApply: (value: QueryDesignerResult) => void }) {
+  const [mode, setMode] = useState<QueryDesignerMode>(queryMode === 100000000 || queryMode === 100000001 ? "view" : "filters");
   const [query, setQuery] = useState(fetchXml);
   const [limit, setLimit] = useState(maxRecords);
-  const [viewId, setViewId] = useState("");
-  const [viewType, setViewType] = useState<"system" | "personal">("system");
-  const systemViews = useSystemViews(targetEntity);
-  const userViews = useUserViews(targetEntity);
+  const [viewId, setViewId] = useState(initialViewId ?? "");
+  const [viewType, setViewType] = useState<"system" | "personal">(initialViewType ?? (queryMode === 100000001 ? "personal" : "system"));
+  const [relationshipKey, setRelationshipKey] = useState(String(initialRelationship?.schemaName ?? ""));
+  const [relatedFields, setRelatedFields] = useState<string[]>(Array.isArray(initialRelationship?.fields) ? initialRelationship.fields.filter((field): field is string => typeof field === "string") : []);
+  const tables = useDataverseTables();
+  const relationships = useDataverseRelationships(sourceEntity ?? targetEntity, sourceEntitySetName ?? entitySetName);
+  const availableRelationships = relationships.data ?? [];
+  const selectedRelationship = availableRelationships.find((item) => item.schemaName === relationshipKey)
+    ?? availableRelationships.find((item) => item.entity === targetEntity);
+  const effectiveEntity = purpose === "related" ? (selectedRelationship?.entity ?? targetEntity) : targetEntity;
+  const effectiveTable = tables.data?.find((table) => table.logicalName === effectiveEntity);
+  const effectiveEntitySet = effectiveTable?.entitySetName ?? entitySetName;
+  const relatedColumns = useDataverseColumns(effectiveEntity, effectiveEntitySet);
+  const systemViews = useSystemViews(effectiveEntity);
+  const userViews = useUserViews(effectiveEntity);
+  const preview = useDataverseRecordPreview();
   const availableViews = viewType === "system" ? (systemViews.data ?? []) : (userViews.data ?? []);
   const title = purpose === "records" ? "Record selection" : "Related records";
   const technical = purpose === "records" ? "csp_fetchxml" : "csp_relatedfetchxml";
@@ -295,19 +343,50 @@ function QueryDesignerPane({ purpose, targetEntity, fetchXml, maxRecords, onClos
     const selected = availableViews.find((view) => view.id === id);
     if (selected?.fetchXml) setQuery(selected.fetchXml);
   };
-  const apply = () => onApply({ fetchXml: query.trim(), maxRecords: limit, queryMode: mode === "view" ? (viewType === "system" ? 100000000 : 100000001) : 100000002, viewId: mode === "view" ? viewId : undefined, viewType: mode === "view" ? viewType : undefined });
+  const defaultRelatedFields = (relatedColumns.data ?? []).filter((column) => column.readable && !column.logicalName.endsWith("id")).slice(0, 3).map((column) => column.logicalName);
+  const effectiveRelatedFields = relatedFields.length ? relatedFields : defaultRelatedFields;
+  const changeRelatedTable = (schemaName: string) => {
+    const nextRelationship = availableRelationships.find((item) => item.schemaName === schemaName);
+    if (!nextRelationship) return;
+    setRelationshipKey(schemaName);
+    setRelatedFields([]);
+    setViewId("");
+    setQuery(relatedSelectionFetchXml({ entity: nextRelationship.entity, maxRecords: limit }));
+  };
+  const toggleRelatedField = (field: string) => setRelatedFields((current) => {
+    const base = current.length ? current : defaultRelatedFields;
+    return base.includes(field) ? base.filter((item) => item !== field) : [...base, field];
+  });
+  const apply = () => onApply({ fetchXml: query.trim(), maxRecords: limit, queryMode: mode === "view" ? (viewType === "system" ? 100000000 : 100000001) : 100000002, viewId: mode === "view" ? viewId : undefined, viewType: mode === "view" ? viewType : undefined, ...(purpose === "related" ? { relatedTable: effectiveTable, relationship: selectedRelationship, fields: effectiveRelatedFields } : {}) });
 
-  return <><button className="pane-scrim" type="button" aria-label="Close edit pane" onClick={onClose} /><aside className="edit-pane query-designer-pane" aria-label={`Configure ${title.toLowerCase()}`}><header><div><p className="micro-label text-brand-blue">{purpose === "records" ? "Rows entering the automation" : "Rows enriching each summary"}</p><h2>{title}</h2></div><button type="button" aria-label="Close pane" onClick={onClose}>×</button></header><div className="query-mode-tabs" role="tablist" aria-label={`${title} method`}><button type="button" role="tab" aria-selected={mode === "filters"} onClick={() => setMode("filters")}><Settings />Build filters</button><button type="button" role="tab" aria-selected={mode === "view"} onClick={() => setMode("view")}><Grid />Choose a view</button><button type="button" role="tab" aria-selected={mode === "fetchxml"} onClick={() => setMode("fetchxml")}><Code />Edit FetchXML</button></div><section className="query-designer-body">
-    {mode === "filters" && <><div className="query-mode-intro"><b>Build it like a Dataverse view</b><small>Add conditions, sorting, and a record limit. The app compiles valid FetchXML for the flow.</small></div><VisualFilterBuilder targetEntity={targetEntity} onGenerate={(generated) => setQuery(generated)} /></>}
-    {mode === "view" && <><div className="query-mode-intro"><b>Reuse an existing Dataverse view</b><small>Select a system or personal view. Its FetchXML becomes part of this configuration.</small></div><div className="view-type-toggle"><button type="button" className={viewType === "system" ? "active" : ""} onClick={() => { setViewType("system"); setViewId(""); }}>System views</button><button type="button" className={viewType === "personal" ? "active" : ""} onClick={() => { setViewType("personal"); setViewId(""); }}>Personal views</button></div><label className="studio-field"><span>Saved view</span><select aria-label="Saved view" value={viewId} onChange={(event) => chooseView(event.target.value)}><option value="">Select a {viewType} view…</option>{availableViews.map((view) => <option key={view.id} value={view.id}>{view.name}</option>)}</select></label><p className="query-source-status">{(viewType === "system" ? systemViews.isFetching : userViews.isFetching) ? "Loading Dataverse views…" : `${availableViews.length} ${viewType} views available for ${targetEntity}`}</p></>}
+  return <><button className="pane-scrim" type="button" aria-label="Close edit pane" onClick={onClose} /><aside className="edit-pane query-designer-pane" aria-label={`Configure ${title.toLowerCase()}`}><header><div><p className="micro-label text-brand-blue">{purpose === "records" ? "Rows entering the automation" : "Rows enriching each summary"}</p><h2>{title}</h2></div><button type="button" aria-label="Close pane" onClick={onClose}>×</button></header>{purpose === "related" && <div className="space-y-3 border-b border-border px-5 py-4"><label className="studio-field"><span>Related Dataverse table</span><select aria-label="Related Dataverse table" value={selectedRelationship?.schemaName ?? ""} onChange={(event) => changeRelatedTable(event.target.value)}>{availableRelationships.map((item) => { const table = tables.data?.find((candidate) => candidate.logicalName === item.entity); return <option key={item.schemaName || item.entity} value={item.schemaName}>{table?.displayName ?? item.entity} · {item.entity} · {item.schemaName}</option>; })}</select></label><div><p className="field-caption">Columns passed to the prompt</p><div className="mt-2 flex flex-wrap gap-2">{relatedColumns.isLoading ? <small>Loading columns…</small> : (relatedColumns.data ?? []).filter((column) => column.readable).map((column) => { const active = effectiveRelatedFields.includes(column.logicalName); return <button type="button" key={column.logicalName} aria-label={`${column.displayName} · ${column.logicalName}`} aria-pressed={active} className={cn("rounded-md border px-2.5 py-1.5 text-left text-xs", active ? "border-cyan-500 bg-cyan-50 text-slate-950" : "border-border bg-white")} onClick={() => toggleRelatedField(column.logicalName)}>{column.displayName}<code className="ml-1 text-[10px] text-muted-foreground">{column.logicalName}</code></button>; })}</div></div></div>}<div className="query-mode-tabs" role="tablist" aria-label={`${title} method`}><button type="button" role="tab" aria-selected={mode === "filters"} onClick={() => setMode("filters")}><Settings />Build filters</button><button type="button" role="tab" aria-selected={mode === "view"} onClick={() => setMode("view")}><Grid />Choose a view</button><button type="button" role="tab" aria-selected={mode === "fetchxml"} onClick={() => setMode("fetchxml")}><Code />Edit FetchXML</button></div><section className="query-designer-body">
+    {mode === "filters" && <><div className="query-mode-intro"><b>Build it like a Dataverse view</b><small>Add conditions, sorting, and a record limit. The app compiles valid FetchXML for the flow.</small></div><VisualFilterBuilder targetEntity={effectiveEntity} onGenerate={(generated) => setQuery(generated)} /></>}
+    {mode === "view" && <><div className="query-mode-intro"><b>Reuse an existing Dataverse view</b><small>Select a system or personal view. Its FetchXML becomes part of this configuration.</small></div><div className="view-type-toggle"><button type="button" className={viewType === "system" ? "active" : ""} onClick={() => { setViewType("system"); setViewId(""); }}>System views</button><button type="button" className={viewType === "personal" ? "active" : ""} onClick={() => { setViewType("personal"); setViewId(""); }}>Personal views</button></div><label className="studio-field"><span>Saved view</span><select aria-label="Saved view" value={viewId} onChange={(event) => chooseView(event.target.value)}><option value="">Select a {viewType} view…</option>{availableViews.map((view) => <option key={view.id} value={view.id}>{view.name}</option>)}</select></label><p className="query-source-status">{(viewType === "system" ? systemViews.isFetching : userViews.isFetching) ? "Loading Dataverse views…" : `${availableViews.length} ${viewType} views available for ${effectiveEntity}`}</p></>}
     {mode === "fetchxml" && <><div className="query-mode-intro"><b>Advanced FetchXML</b><small>Edit the compiled query directly for joins, nested groups, or operators not exposed by the filter builder.</small></div><label className="studio-field"><span>{purpose === "records" ? "Record selection FetchXML" : "Related-record FetchXML"}</span><textarea aria-label={purpose === "records" ? "Record selection FetchXML" : "Related-record FetchXML"} className="query-code-editor" value={query} onChange={(event) => setQuery(event.target.value)} spellCheck={false} /></label></>}
     <div className="query-output"><span><Code /></span><div><small>Output stored in</small><b>{technical}</b></div><code>{query.length.toLocaleString("en-US")} characters</code></div>
-  </section><footer><div className="query-limit"><label>Maximum records <input type="number" min={1} max={5000} value={limit} onChange={(event) => setLimit(Math.max(1, Math.min(5000, Number(event.target.value) || 1)))} /></label></div><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={apply} disabled={!query.trim().startsWith("<fetch") || (mode === "view" && !viewId)}>Apply selection</Button></footer></aside></>;
+    {preview.data && <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3"><b className="text-sm text-emerald-950">{preview.data.length} matching records loaded</b><div className="mt-2 grid gap-2">{preview.data.slice(0, 5).map((record, index) => <code key={index} className="block truncate rounded-md bg-white px-2 py-1.5 text-xs">{JSON.stringify(record)}</code>)}</div></div>}
+    {preview.isError && <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{preview.error instanceof Error ? preview.error.message : "Dataverse could not execute this query."}</p>}
+  </section><footer><div className="query-limit"><label>Maximum records <input type="number" min={1} max={5000} value={limit} onChange={(event) => setLimit(Math.max(1, Math.min(5000, Number(event.target.value) || 1)))} /></label></div><Button type="button" variant="outline" aria-label="Preview matching records" disabled={!query.trim().startsWith("<fetch") || preview.isPending} onClick={() => preview.mutate({ logicalName: effectiveEntity, entitySetName: effectiveEntitySet, fetchXml: query, limit: Math.min(limit, 10) })}>{preview.isPending ? "Loading…" : "Preview records"}</Button><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={apply} disabled={!query.trim().startsWith("<fetch") || (mode === "view" && !viewId) || (purpose === "related" && !selectedRelationship)}>Apply selection</Button></footer></aside></>;
 }
 
 function ContextQueryPane({ fetchXml, onClose, onApply }: { fetchXml: string; onClose: () => void; onApply: (fetchXml: string) => void }) {
   const [query, setQuery] = useState(fetchXml);
   return <><button className="pane-scrim" type="button" aria-label="Close edit pane" onClick={onClose} /><aside className="edit-pane" aria-label="Edit context query"><header><div><p className="micro-label text-brand-blue">Per-record context</p><h2>Context FetchXML</h2></div><button type="button" aria-label="Close pane" onClick={onClose}>×</button></header><div className="pane-current"><span><Code /></span><div><small>Configuration column</small><b>Context query</b><code>csp_relatedfetchxml</code></div></div><section className="space-y-4"><div className="query-guidance"><GitBranch /><p><b>Runs once for every selected record</b><small>Use <code>{"{{recordId}}"}</code> where the generated flow must inject the current Dataverse row identifier.</small></p></div><label className="studio-field"><span>Context FetchXML</span><textarea aria-label="Context FetchXML" className="min-h-80 w-full resize-none rounded-lg border border-border bg-slate-950 p-3 font-mono text-xs leading-5 text-cyan-100 outline-none focus:border-brand-cyan" value={query} onChange={(event) => setQuery(event.target.value)} spellCheck={false} /></label><p className="text-xs leading-5 text-muted-foreground">This query builds the payload sent to the AI Prompt. It can include source fields, linked entities, filters, ordering, and record limits.</p></section><footer><Button variant="outline" onClick={onClose}>Cancel</Button><Button onClick={() => onApply(query.trim())} disabled={!query.trim().startsWith("<fetch") || !query.includes("{{recordId}}")}>Apply changes</Button></footer></aside></>;
+}
+
+function TestRecordPane({ draft, onClose }: { draft: BuilderDraft; onClose: () => void }) {
+  const records = useDataverseRecordPreview();
+  const context = useDataverseRecordPreview();
+  const [selectedId, setSelectedId] = useState("");
+  const idField = draft.entityIdField || getTargetEntityIdentity(draft.entity).idField;
+  const entitySetName = draft.entitySetName || getTargetEntityIdentity(draft.entity).entitySet;
+  const labelFor = (record: Record<string, unknown>) => String(record.name ?? record.fullname ?? record.title ?? record.subject ?? record[idField] ?? "Dataverse record");
+  const compile = () => {
+    if (!selectedId) return;
+    context.mutate({ logicalName: draft.entity, entitySetName, fetchXml: draft.relatedFetchXml.replaceAll("{{recordId}}", selectedId), limit: 10 });
+  };
+  const selectableRecords = (records.data ?? []).filter((record) => Boolean(record[idField]));
+  return <><button className="pane-scrim" type="button" aria-label="Close edit pane" onClick={onClose} /><aside className="edit-pane query-designer-pane" aria-label="Test with a Dataverse record"><header><div><p className="micro-label text-brand-blue">Live Dataverse test</p><h2>Test with a record</h2></div><button type="button" aria-label="Close pane" onClick={onClose}>×</button></header><section className="query-designer-body"><div className="query-guidance"><Database /><p><b>Use the current record selection</b><small>The app executes <code>csp_fetchxml</code>, then compiles the per-record context exactly as the generated flow will.</small></p></div><Button type="button" variant="outline" aria-label="Load matching records" disabled={records.isPending} onClick={() => records.mutate({ logicalName: draft.entity, entitySetName, fetchXml: draft.fetchXml, limit: 10 })}>{records.isPending ? "Loading records…" : "Load matching records"}</Button>{records.data && <div className="mt-4 space-y-2"><p className="field-caption">Choose a record</p>{selectableRecords.map((record) => { const id = String(record[idField]); return <button type="button" key={id} className={cn("flex w-full items-center gap-3 rounded-lg border p-3 text-left", selectedId === id && "border-cyan-500 bg-cyan-50")} onClick={() => setSelectedId(id)}><span className="radio-dot" /><span><b className="block text-sm">{labelFor(record)}</b><code className="text-xs">{id}</code></span></button>; })}{selectableRecords.length === 0 && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">The current query must include <code>{idField}</code> to test a record.</p>}</div>}{context.data && <div className="mt-4 rounded-xl bg-slate-950 p-4 text-cyan-100"><p className="micro-label text-brand-cyan">Compiled prompt context</p><pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap text-xs">{JSON.stringify(context.data, null, 2)}</pre></div>}{(records.isError || context.isError) && <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">Dataverse could not execute the current recipe.</p>}</section><footer><Button variant="outline" onClick={onClose}>Close</Button><Button onClick={compile} disabled={!selectedId || context.isPending}>{context.isPending ? "Compiling…" : "Compile context"}</Button></footer></aside></>;
 }
 
 function EditPane({ pane, current, options, onClose, onApply }: { pane: PaneKind; current: string; options: string[]; onClose: () => void; onApply: (value: string) => void }) {
@@ -329,6 +408,7 @@ function Builder() {
   const prompts = useMemo(() => data?.prompts ?? [], [data?.prompts]);
   const [step, setStep] = useState(0);
   const [recipeOpen, setRecipeOpen] = useState(false);
+  const [testRecordOpen, setTestRecordOpen] = useState(false);
   const [pane, setPane] = useState<PaneKind | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [draft, setDraft] = useState<BuilderDraft>(() => draftFromConfiguration());
@@ -366,21 +446,22 @@ function Builder() {
     : draft.model.replace("gpt-", "GPT-").replace("-mini", " mini");
   const applyPane = async (value: string) => {
     if (!pane) return;
-    if (pane === "table") { const entity = value.includes("incident") ? "incident" : value.includes("opportunity") ? "opportunity" : "account"; const fetchXml = buildRecordSelectionFetchXml(entity, draft.maxRecords); const relatedFetchXml = buildContextFetchXml(entity, draft.sourceFields, draft.relationships); const target = getTargetEntityIdentity(entity); await save({ ...draft, entity, fetchXml, relatedFetchXml }, { csp_targetentity: entity, csp_targetentityset: target.entitySet, csp_targetentityidfield: target.idField, csp_fetchxml: fetchXml, csp_relatedfetchxml: relatedFetchXml }); }
     if (pane === "execution") { const mode = value === "Consolidated summary" ? 100000001 : 100000000; await save({ ...draft, mode }, { csp_mode: mode }); }
     if (pane === "model") { const model = value.toLowerCase().replace(" ", "-"); await save({ ...draft, model }, { csp_model: model }); }
     if (pane === "prompt") { const prompt = prompts.find((item) => item.name === value); if (prompt) await save({ ...draft, promptId: prompt.id, promptName: prompt.name, promptKey: prompt.key, promptContent: prompt.content }, { "csp_Prompt@odata.bind": `/csp_aiprompts(${prompt.id})` }); }
-    if (pane === "outputTable") { const outputEntity = value.includes("csp_aisummarycache") ? "csp_aisummarycache" : "account"; await save({ ...draft, outputEntity }, { csp_outputentity: outputEntity }); }
-    if (pane === "outputField") { const outputField = value.includes("description") ? "description" : value.includes(" · name") ? "name" : "csp_aisummary"; await save({ ...draft, outputField }, { csp_outputfield: outputField }); }
   };
   const updateDraft = async (changes: Partial<BuilderDraft>) => {
     const next = { ...draft, ...changes };
     const fields: Record<string, unknown> = {};
     if (changes.sourceFields || changes.relationships) {
-      next.relatedFetchXml = buildContextFetchXml(next.entity, next.sourceFields, next.relationships);
+      next.relatedFetchXml = buildContextFetchXml(next.entity, next.sourceFields, next.relationships, next.entityIdField);
       fields.csp_sourcefields = JSON.stringify(next.sourceFields);
       fields.csp_relationships = JSON.stringify(next.relationships);
       fields.csp_relatedfetchxml = next.relatedFetchXml;
+    }
+    if (changes.sourceFields && draft.triggerColumns.length === 0) {
+      next.triggerColumns = changes.sourceFields.filter((field) => field !== next.outputField);
+      fields.csp_triggercolumns = JSON.stringify(next.triggerColumns);
     }
     if (changes.triggerColumns) fields.csp_triggercolumns = JSON.stringify(changes.triggerColumns);
     if (changes.outputEntity) fields.csp_outputentity = changes.outputEntity;
@@ -411,13 +492,29 @@ function Builder() {
   };
   const content = [<DataStep onEdit={setPane} draft={draft} accounts={data?.accounts ?? []} />, <PromptStep key={draft.promptId} onEdit={setPane} draft={draft} onSavePrompt={savePromptContent} savingPrompt={updatePrompt.isPending} />, <DestinationStep draft={draft} onEdit={setPane} onChange={updateDraft} />, <ExecutionStep draft={draft} onChange={updateDraft} />, <ReviewStep draft={draft} validationErrors={validationErrors} />][step];
   return <Shell><div className="studio-page builder-page">
-    <PageHeader eyebrow={`Configuration · ${configuration?.version ?? "draft"}`} title={draft.name} description="" actions={<><span className="saved-state"><CheckCircle />{updateConfiguration.isPending || createConfiguration.isPending ? "Saving…" : data?.live ? "Dataverse" : "Local demo"}</span><Button type="button" variant="outline" size="sm" onClick={() => setRecipeOpen(!recipeOpen)}><Code data-icon="inline-start" />{recipeOpen ? "Hide recipe" : "View recipe"}</Button><Button size="sm">Test with a record</Button></>} />
+    <PageHeader eyebrow={`Configuration · ${configuration?.version ?? "draft"}`} title={draft.name} description="" actions={<><span className="saved-state"><CheckCircle />{updateConfiguration.isPending || createConfiguration.isPending ? "Saving…" : data?.live ? "Dataverse" : "Local demo"}</span><Button type="button" variant="outline" size="sm" onClick={() => setRecipeOpen(!recipeOpen)}><Code data-icon="inline-start" />{recipeOpen ? "Hide recipe" : "View recipe"}</Button><Button size="sm" onClick={() => setTestRecordOpen(true)}>Test with a record</Button></>} />
     {recipeOpen && <div className="recipe-drawer"><CompiledRecipe step={step} draft={draft} title="Compiled recipe" /></div>}
     <div className="builder-layout">
       <aside className="step-rail bpf-process" aria-label="Configuration process"><div className="bpf-process-header"><span>Configuration process</span><em>Stage {step + 1} of {steps.length}</em></div><div className="bpf-stages">{steps.map((item, index) => { const Icon = item.icon; return <button type="button" key={item.title} onClick={() => setStep(index)} className={cn(step === index && "active", index < step && "complete")} aria-current={step === index ? "step" : undefined}><span>{index < step ? <Check /> : <Icon />}</span><div><small>0{index+1} · {item.stage}</small><b>{item.title}</b></div></button>; })}</div></aside>
       <main className="editor-panel">{content}<footer className="editor-footer" aria-label="Process actions"><Button variant="ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>Previous</Button><span>Step {step + 1} of {steps.length}</span>{step < 4 ? <Button onClick={() => setStep(step + 1)}>Continue <ArrowRight data-icon="inline-end" /></Button> : <Button onClick={publish} disabled={updateConfiguration.isPending || createConfiguration.isPending}><Flow data-icon="inline-start" />{updateConfiguration.isPending || createConfiguration.isPending ? "Saving…" : "Publish configuration"}</Button>}</footer></main>
     </div>
-    {pane === "fields" ? <FieldsPane selectedFields={draft.sourceFields} onClose={() => setPane(null)} onApply={(fields) => updateDraft({ sourceFields: fields })} /> : pane === "records" ? <QueryDesignerPane purpose="records" targetEntity={draft.entity} fetchXml={draft.fetchXml} maxRecords={draft.maxRecords} onClose={() => setPane(null)} onApply={({ fetchXml, maxRecords, queryMode, viewId, viewType }) => save({ ...draft, fetchXml, maxRecords, queryMode }, { csp_fetchxml: fetchXml, csp_maxrecords: maxRecords, csp_querymode: queryMode, ...(viewId && viewType === "system" ? { csp_systemviewid: viewId } : {}), ...(viewId && viewType === "personal" ? { csp_userviewid: viewId } : {}) })} /> : pane === "relationships" ? <QueryDesignerPane purpose="related" targetEntity={String(draft.relationships[0]?.entity ?? "activitypointer")} fetchXml={relatedSelectionFetchXml(draft.relationships[0])} maxRecords={Number(draft.relationships[0]?.maxRecords ?? 12)} onClose={() => setPane(null)} onApply={({ fetchXml, maxRecords, queryMode, viewId, viewType }) => { const relationships = [{ ...(draft.relationships[0] ?? {}), entity: String(draft.relationships[0]?.entity ?? "activitypointer"), maxRecords, fetchXml, selectionMode: queryMode, ...(viewId ? { viewId, viewType } : {}) }]; const relatedFetchXml = buildContextFetchXml(draft.entity, draft.sourceFields, relationships); return save({ ...draft, relationships, relatedFetchXml }, { csp_relationships: JSON.stringify(relationships), csp_relatedfetchxml: relatedFetchXml }); }} /> : pane === "contextQuery" ? <ContextQueryPane fetchXml={draft.relatedFetchXml} onClose={() => setPane(null)} onApply={(relatedFetchXml) => save({ ...draft, relatedFetchXml }, { csp_relatedfetchxml: relatedFetchXml })} /> : pane && <EditPane pane={pane} current={paneCurrent} options={paneOptions.length ? paneOptions : paneContent[pane].options} onClose={() => setPane(null)} onApply={applyPane} />}
+    {pane === "table" ? <TableCatalogPane purpose="source" current={draft.entity} onClose={() => setPane(null)} onApply={(table) => {
+      const sourceFields: string[] = [];
+      const triggerColumns: string[] = [];
+      const fetchXml = buildRecordSelectionFetchXml(table.logicalName, draft.maxRecords, table.primaryIdAttribute);
+      const relatedFetchXml = buildContextFetchXml(table.logicalName, sourceFields, [], table.primaryIdAttribute);
+      return save({ ...draft, entity: table.logicalName, entitySetName: table.entitySetName, entityIdField: table.primaryIdAttribute, sourceFields, triggerColumns, relationships: [], fetchXml, relatedFetchXml }, { csp_targetentity: table.logicalName, csp_targetentityset: table.entitySetName, csp_targetentityidfield: table.primaryIdAttribute, csp_sourcefields: "[]", csp_triggercolumns: "[]", csp_relationships: "[]", csp_fetchxml: fetchXml, csp_relatedfetchxml: relatedFetchXml });
+    }} /> : pane === "fields" ? <FieldsPane entity={draft.entity} entitySetName={draft.entitySetName || getTargetEntityIdentity(draft.entity).entitySet} selectedFields={draft.sourceFields} onClose={() => setPane(null)} onApply={(fields) => updateDraft({ sourceFields: fields })} /> : pane === "records" ? <QueryDesignerPane purpose="records" targetEntity={draft.entity} entitySetName={draft.entitySetName || getTargetEntityIdentity(draft.entity).entitySet} queryMode={draft.queryMode} initialViewId={draft.queryMode === 100000000 ? draft.systemViewId : draft.userViewId} initialViewType={draft.queryMode === 100000001 ? "personal" : "system"} fetchXml={draft.fetchXml} maxRecords={draft.maxRecords} onClose={() => setPane(null)} onApply={({ fetchXml, maxRecords, queryMode, viewId, viewType }) => {
+      const systemViewId = viewType === "system" ? viewId : undefined;
+      const userViewId = viewType === "personal" ? viewId : undefined;
+      return save({ ...draft, fetchXml, maxRecords, queryMode, systemViewId, userViewId }, { csp_fetchxml: fetchXml, csp_maxrecords: maxRecords, csp_querymode: queryMode, csp_systemviewid: systemViewId ?? null, csp_userviewid: userViewId ?? null });
+    }} /> : pane === "relationships" ? <QueryDesignerPane purpose="related" sourceEntity={draft.entity} sourceEntitySetName={draft.entitySetName || getTargetEntityIdentity(draft.entity).entitySet} targetEntity={String(draft.relationships[0]?.entity ?? "activitypointer")} entitySetName={String(draft.relationships[0]?.entitySetName ?? "activitypointers")} relationship={draft.relationships[0]} queryMode={Number(draft.relationships[0]?.selectionMode ?? 100000002)} initialViewId={draft.relationships[0]?.viewId ? String(draft.relationships[0].viewId) : undefined} initialViewType={draft.relationships[0]?.viewType === "personal" ? "personal" : "system"} fetchXml={relatedSelectionFetchXml(draft.relationships[0])} maxRecords={Number(draft.relationships[0]?.maxRecords ?? 12)} onClose={() => setPane(null)} onApply={({ fetchXml, maxRecords, queryMode, viewId, viewType, relatedTable, relationship, fields }) => {
+      if (!relationship) return;
+      const relationships = [{ ...relationship, entitySetName: relatedTable?.entitySetName, fields: fields ?? [], maxRecords, fetchXml, selectionMode: queryMode, ...(viewId ? { viewId, viewType } : {}) }];
+      const relatedFetchXml = buildContextFetchXml(draft.entity, draft.sourceFields, relationships, draft.entityIdField);
+      return save({ ...draft, relationships, relatedFetchXml }, { csp_relationships: JSON.stringify(relationships), csp_relatedfetchxml: relatedFetchXml });
+    }} /> : pane === "contextQuery" ? <ContextQueryPane fetchXml={draft.relatedFetchXml} onClose={() => setPane(null)} onApply={(relatedFetchXml) => save({ ...draft, relatedFetchXml }, { csp_relatedfetchxml: relatedFetchXml })} /> : pane === "outputTable" ? <TableCatalogPane purpose="destination" current={draft.outputEntity} onClose={() => setPane(null)} onApply={(table) => save({ ...draft, outputEntity: table.logicalName, outputEntitySetName: table.entitySetName, outputField: "" }, { csp_outputentity: table.logicalName, csp_outputfield: "" })} /> : pane === "outputField" ? <OutputFieldPane entity={draft.outputEntity} entitySetName={draft.outputEntitySetName || getTargetEntityIdentity(draft.outputEntity).entitySet} current={draft.outputField} onClose={() => setPane(null)} onApply={(outputField) => save({ ...draft, outputField }, { csp_outputfield: outputField })} /> : pane && <EditPane pane={pane} current={paneCurrent} options={paneOptions.length ? paneOptions : paneContent[pane].options} onClose={() => setPane(null)} onApply={applyPane} />}
+    {testRecordOpen && <TestRecordPane draft={draft} onClose={() => setTestRecordOpen(false)} />}
   </div></Shell>;
 }
 

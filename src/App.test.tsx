@@ -80,6 +80,37 @@ describe("Creativity Spark Summary Studio", () => {
     expect(screen.getAllByText("csp_relatedfetchxml").length).toBeGreaterThan(0);
   });
 
+  it("chooses the source from the Dataverse table catalog", async () => {
+    renderRoute("/configurations/account-operations");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Change source table" }));
+    expect(screen.getByRole("complementary", { name: "Choose source table" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Contacts · contact/ })).toBeInTheDocument();
+  });
+
+  it("selects real columns for the active source table", async () => {
+    renderRoute("/configurations/account-operations");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Configure source fields" }));
+    expect(screen.getByRole("complementary", { name: "Choose source columns" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Account Name · name" })).toBeInTheDocument();
+  });
+
+  it("previews the current FetchXML against Dataverse", async () => {
+    renderRoute("/configurations/account-operations");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Configure record FetchXML" }));
+    expect(screen.getByRole("button", { name: "Preview matching records" })).toBeInTheDocument();
+  });
+
+  it("tests the compiled context with a real record", async () => {
+    renderRoute("/configurations/account-operations");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Test with a record" }));
+    expect(screen.getByRole("complementary", { name: "Test with a Dataverse record" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Load matching records" })).toBeInTheDocument();
+  });
+
   it("opens the context FetchXML editor from the context section", async () => {
     renderRoute("/configurations/account-operations");
 
@@ -106,6 +137,11 @@ describe("Creativity Spark Summary Studio", () => {
     expect(screen.getByRole("tab", { name: "Build filters" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Choose a view" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Edit FetchXML" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Related Dataverse table")).toBeInTheDocument();
+    const contacts = await screen.findByRole("option", { name: /Contacts/ });
+    expect(contacts).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Related Dataverse table"), { target: { value: "account_contacts" } });
+    expect(await screen.findByRole("button", { name: /Full Name · fullname/ })).toBeInTheDocument();
   });
 
   it("opens a model-driven side pane when a configuration property is edited", async () => {
@@ -113,18 +149,18 @@ describe("Creativity Spark Summary Studio", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Change source table" }));
 
-    expect(screen.getByRole("complementary", { name: "Edit primary table" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Primary table" })).toBeInTheDocument();
-    expect(screen.getAllByText("Account · account")).toHaveLength(2);
+    expect(screen.getByRole("complementary", { name: "Choose source table" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Source table" })).toBeInTheDocument();
+    expect((await screen.findAllByText("Accounts")).length).toBeGreaterThan(0);
   });
 
   it("adds a Dataverse source field from the side pane", async () => {
     renderRoute("/configurations/account-operations");
 
     fireEvent.click(await screen.findByRole("button", { name: "Configure source fields" }));
-    expect(screen.getByRole("complementary", { name: "Edit selected fields" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Choose source columns" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Account number/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Account Number · accountnumber/ }));
     fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
 
     expect(screen.getByText("accountnumber")).toBeInTheDocument();
@@ -135,10 +171,10 @@ describe("Creativity Spark Summary Studio", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /Destination/ }));
     fireEvent.click(screen.getByRole("button", { name: "Edit destination column" }));
-    expect(screen.getByRole("complementary", { name: "Edit destination column" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Choose destination column" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Description/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Apply changes" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Description · description/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply column" }));
     expect(screen.getByText("description")).toBeInTheDocument();
   });
 

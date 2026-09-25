@@ -14,11 +14,14 @@ export interface StudioConfiguration {
   name: string;
   description: string;
   entity: string;
+  entitySetName: string;
+  entityIdField: string;
   sourceFields: string[];
   triggerColumns: string[];
   relationships: Array<Record<string, unknown>>;
   inputMappings: Record<string, string>;
   outputEntity: string;
+  outputEntitySetName: string;
   outputField: string;
   model: string;
   version: string;
@@ -30,6 +33,8 @@ export interface StudioConfiguration {
   enabled: boolean;
   lastRun: string | null;
   queryMode: number;
+  systemViewId?: string;
+  userViewId?: string;
   maxRecords: number;
   fetchXml: string;
   relatedFetchXml: string;
@@ -69,11 +74,14 @@ const fallback: StudioRuntime = {
     name: "Account operations summary",
     description: "Primary Summary Studio demo.",
     entity: "account",
+    entitySetName: "accounts",
+    entityIdField: "accountid",
     sourceFields: ["name", "industrycode", "revenue", "description", "primarycontactid", "modifiedon"],
     triggerColumns: ["name", "revenue", "description", "primarycontactid"],
     relationships: [{ entity: "activitypointer", windowDays: 30, maxRecords: 12 }],
     inputMappings: { account_context: "compiled.primaryAndRelated", generated_at: "utcNow" },
     outputEntity: "account",
+    outputEntitySetName: "accounts",
     outputField: "csp_aisummary",
     model: "gpt-4.1-mini",
     version: "3.0",
@@ -148,13 +156,15 @@ export function useStudioRuntime() {
         });
         const configurations = (configResult.data ?? []).map((item) => {
           const raw = item as unknown as Record<string, unknown>;
+          const compiled = parseJson<{ output?: { entitySetName?: string } }>(raw.csp_configurationjson, {});
           const isSummitDemo = String(raw.csp_flowname ?? "") === "csp_SUM_AccountOperations_v3";
           return {
-            id: String(raw.csp_aisummaryconfigid ?? ""), name: isSummitDemo ? "Account operations summary" : String(raw.csp_name ?? ""), description: isSummitDemo ? "Primary Summary Studio demo." : String(raw.csp_description ?? ""), entity: String(raw.csp_targetentity ?? "account"),
+            id: String(raw.csp_aisummaryconfigid ?? ""), name: isSummitDemo ? "Account operations summary" : String(raw.csp_name ?? ""), description: isSummitDemo ? "Primary Summary Studio demo." : String(raw.csp_description ?? ""), entity: String(raw.csp_targetentity ?? "account"), entitySetName: String(raw.csp_targetentityset ?? "accounts"), entityIdField: String(raw.csp_targetentityidfield ?? "accountid"),
             sourceFields: parseJson<string[]>(raw.csp_sourcefields, []), triggerColumns: parseJson<string[]>(raw.csp_triggercolumns, []), relationships: parseJson<Array<Record<string, unknown>>>(raw.csp_relationships, []), inputMappings: parseJson<Record<string, string>>(raw.csp_inputmappings, {}),
-            outputEntity: String(raw.csp_outputentity ?? raw.csp_targetentity ?? "account"), outputField: String(raw.csp_outputfield ?? "csp_aisummary"), model: String(raw.csp_model ?? "gpt-4.1-mini"), version: String(raw.csp_version ?? "1.0"), flowName: String(raw.csp_flowname ?? ""),
+            outputEntity: String(raw.csp_outputentity ?? raw.csp_targetentity ?? "account"), outputEntitySetName: String(compiled.output?.entitySetName ?? ""), outputField: String(raw.csp_outputfield ?? "csp_aisummary"), model: String(raw.csp_model ?? "gpt-4.1-mini"), version: String(raw.csp_version ?? "1.0"), flowName: String(raw.csp_flowname ?? ""),
             status: Number(raw.csp_status ?? 100000000), mode: Number(raw.csp_mode ?? 100000000), promptId: String(raw._csp_prompt_value ?? ""), promptName: isSummitDemo ? "Account executive summary" : String(raw.csp_promptname ?? ""), enabled: Boolean(raw.csp_enabled), lastRun: raw.csp_lastrun ? String(raw.csp_lastrun) : null,
             queryMode: Number(raw.csp_querymode ?? 100000002), maxRecords: Number(raw.csp_maxrecords ?? 5000), fetchXml: String(raw.csp_fetchxml ?? ""), relatedFetchXml: String(raw.csp_relatedfetchxml ?? ""),
+            systemViewId: raw.csp_systemviewid ? String(raw.csp_systemviewid) : undefined, userViewId: raw.csp_userviewid ? String(raw.csp_userviewid) : undefined,
           };
         });
         const accounts = (accountResult.data ?? []).map((item) => {
