@@ -28,14 +28,14 @@ import { Switch } from "@/components/ui/switch";
 import { VisualFilterBuilder } from "@/components/VisualFilterBuilder";
 import { cn } from "@/lib/utils";
 import { buildConfigurationPayload, buildContextFetchXml, buildDraftConfigurationPayload, buildPublishSignal, buildRecordSelectionFetchXml, compileRecipe, getTargetEntityIdentity, validateSummaryConfiguration, type SummaryConfigurationDraft } from "@/lib/summaryConfiguration";
+import { buildPromptDraft, type PromptWizardAnswers } from "@/lib/promptWizard";
 import { useCreateStudioConfiguration, useStudioRuntime, useUpdateStudioConfiguration, useUpdateStudioPrompt, type StudioAccount, type StudioConfiguration, type StudioPrompt } from "@/hooks/useStudioRuntime";
 import { useSystemViews } from "@/hooks/useSystemViews";
 import { useUserViews } from "@/hooks/useUserViews";
 import { useDataverseColumns, useDataverseRecordPreview, useDataverseRelationships, useDataverseTableMetadata, useDataverseTables } from "@/hooks/useDataverseCatalog";
 import type { DataverseRelationshipMetadata, DataverseTableMetadata } from "@/lib/summaryConfiguration";
 
-const LOGO = "https://99e46348.delivery.rocketcdn.me/wp-content/uploads/2024/10/creativity-spark-blanco.svg";
-const MARK = "/creativity-spark-mark.png";
+const BRAND_MARK = new URL("../public/creativity-spark-mark.png", import.meta.url).href;
 
 const navItems = [
   { to: "/", label: "Configurations", icon: Grid, activeIcon: Grid20Filled, end: true },
@@ -51,9 +51,15 @@ function Shell({ children }: { children: ReactNode }) {
       <a href="#main-content" className="skip-link">Skip to main content</a>
       <aside className="studio-sidebar">
         <div className="px-5 pt-6">
-          <img src={LOGO} alt="Creativity Spark" width="188" height="74" className="h-auto w-[170px]" />
+          <div role="img" aria-label="Creativity Spark" className="flex items-center gap-3 py-1">
+            <img src={BRAND_MARK} alt="" width="42" height="52" className="h-[52px] w-[42px] object-contain" />
+            <div className="min-w-0">
+              <p className="whitespace-nowrap text-[21px] font-bold leading-none tracking-[-.035em] text-white">Creativity Spark</p>
+              <p className="mt-2 whitespace-nowrap text-[8px] tracking-[.08em] text-white/65">We turn your ideas into brilliant apps</p>
+            </div>
+          </div>
           <div className="mt-5 flex items-center gap-2 border-t border-white/10 pt-4">
-            <img src={MARK} alt="" width="26" height="26" className="size-6 object-contain" />
+            <img src={BRAND_MARK} alt="" width="26" height="26" className="size-6 object-contain" />
             <div><p className="text-[13px] font-semibold text-white">Summary Studio</p><p className="text-[9px] font-semibold uppercase tracking-[.18em] text-white/38">Power Platform compiler</p></div>
           </div>
         </div>
@@ -189,17 +195,66 @@ function DataStep({ onEdit, draft, accounts }: { onEdit: (pane: PaneKind) => voi
   </div>;
 }
 
+const defaultPromptWizardAnswers: PromptWizardAnswers = {
+  objective: "Give account managers a concise operational briefing before a customer conversation.",
+  audience: "Account managers",
+  format: "Structured sections",
+  length: "Concise",
+  tone: "Direct and professional",
+  language: "English",
+  includeActions: true,
+  citeEvidence: true,
+  handleMissingData: true,
+};
+
+function PromptAssistantPane({ draft, onClose, onApply }: { draft: BuilderDraft; onClose: () => void; onApply: (prompt: string) => void }) {
+  const [step, setStep] = useState(1);
+  const [answers, setAnswers] = useState(defaultPromptWizardAnswers);
+  const [generatedPrompt, setGeneratedPrompt] = useState("");
+  const update = <K extends keyof PromptWizardAnswers>(key: K, value: PromptWizardAnswers[K]) => setAnswers((current) => ({ ...current, [key]: value }));
+  const generate = () => {
+    setGeneratedPrompt(buildPromptDraft({
+      answers,
+      contextVariable: "{{account_context}}",
+      entityLabel: draft.entity === "account" ? "Account" : draft.entity,
+      fields: draft.sourceFields,
+      relatedSources: draft.relationships.map((relationship) => String(relationship.entity ?? "")).filter(Boolean),
+    }));
+    setStep(3);
+  };
+
+  return <><button className="pane-scrim" type="button" aria-label="Close prompt design assistant" onClick={onClose} /><aside className="edit-pane prompt-wizard-pane" aria-label="Prompt design assistant">
+    <header><div><p className="micro-label text-brand-blue">AI-assisted prompt builder</p><h2>Design a better prompt</h2></div><button type="button" aria-label="Close prompt design assistant" onClick={onClose}>×</button></header>
+    <nav className="prompt-wizard-progress" aria-label="Prompt wizard progress">
+      {["Purpose", "Output", "Review"].map((label, index) => <span key={label} className={step === index + 1 ? "active" : step > index + 1 ? "complete" : ""}><i>{step > index + 1 ? <Check /> : index + 1}</i>{label}</span>)}
+    </nav>
+    <section className="prompt-wizard-body">
+      {step === 1 && <div className="prompt-wizard-stage"><p className="micro-label text-brand-blue">Step 1 · Purpose</p><h3>What should this summary achieve?</h3><p className="wizard-lead">Describe the business outcome. The assistant already knows which Dataverse fields and related records are available.</p>
+        <LabeledField label="Summary objective"><textarea aria-label="Summary objective" value={answers.objective} onChange={(event) => update("objective", event.target.value)} rows={4} /></LabeledField>
+        <div className="grid grid-cols-2 gap-3"><LabeledField label="Audience"><select aria-label="Audience" value={answers.audience} onChange={(event) => update("audience", event.target.value)}><option>Account managers</option><option>Executives</option><option>Service agents</option><option>Operations teams</option></select></LabeledField><LabeledField label="Language"><select aria-label="Output language" value={answers.language} onChange={(event) => update("language", event.target.value)}><option>English</option><option>Spanish</option><option>Use the record language</option></select></LabeledField></div>
+        <div className="wizard-context"><Database /><div><b>Context is already connected</b><p>{draft.sourceFields.length} fields and {draft.relationships.length} related source{draft.relationships.length === 1 ? "" : "s"} will be available as <code>{"{{account_context}}"}</code>.</p></div></div>
+      </div>}
+      {step === 2 && <div className="prompt-wizard-stage"><p className="micro-label text-brand-blue">Step 2 · Output</p><h3>Shape the answer</h3><p className="wizard-lead">Choose a dependable output pattern and the safeguards the generated prompt must enforce.</p>
+        <div className="grid grid-cols-2 gap-3"><LabeledField label="Format"><select aria-label="Output format" value={answers.format} onChange={(event) => update("format", event.target.value)}><option>Structured sections</option><option>Bullet points</option><option>Short narrative</option></select></LabeledField><LabeledField label="Length"><select aria-label="Summary length" value={answers.length} onChange={(event) => update("length", event.target.value)}><option>Concise</option><option>Standard</option><option>Detailed</option></select></LabeledField></div>
+        <LabeledField label="Tone"><select aria-label="Tone" value={answers.tone} onChange={(event) => update("tone", event.target.value)}><option>Direct and professional</option><option>Executive and strategic</option><option>Clear and supportive</option><option>Neutral and factual</option></select></LabeledField>
+        <div className="wizard-guardrails"><p className="field-caption">Guardrails</p><label><input type="checkbox" checked={answers.includeActions} onChange={(event) => update("includeActions", event.target.checked)} /><span><b>Recommend next actions</b><small>Turn the summary into an operational briefing.</small></span></label><label><input type="checkbox" checked={answers.citeEvidence} onChange={(event) => update("citeEvidence", event.target.checked)} /><span><b>Ground important statements</b><small>Connect claims to values and events in the context.</small></span></label><label><input type="checkbox" checked={answers.handleMissingData} onChange={(event) => update("handleMissingData", event.target.checked)} /><span><b>Handle missing data explicitly</b><small>Never fill gaps with invented information.</small></span></label></div>
+      </div>}
+      {step === 3 && <div className="prompt-wizard-stage"><p className="micro-label text-brand-blue">Step 3 · Review</p><h3>Review the generated prompt</h3><p className="wizard-lead">The proposal combines your choices with the active Dataverse context. Edit anything before applying it.</p><textarea className="generated-prompt" aria-label="Generated prompt draft" value={generatedPrompt} onChange={(event) => setGeneratedPrompt(event.target.value)} /><div className="wizard-validation"><CheckCircle /><span><b>Ready to use</b><small>Context variable preserved · evidence rules included · output structure defined</small></span></div></div>}
+    </section>
+    <footer>{step > 1 ? <Button type="button" variant="outline" onClick={() => setStep((current) => current - 1)}>Back</Button> : <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>}<span className="flex-1" />{step === 1 ? <Button type="button" onClick={() => setStep(2)} disabled={!answers.objective.trim()}>Continue to output <ArrowRight data-icon="inline-end" /></Button> : step === 2 ? <Button type="button" onClick={generate}><Sparkles data-icon="inline-start" />Generate prompt draft</Button> : <Button type="button" onClick={() => onApply(generatedPrompt)} disabled={!generatedPrompt.trim()}><Check data-icon="inline-start" />Use this prompt</Button>}</footer>
+  </aside></>;
+}
+
 function PromptStep({ onEdit, draft, onSavePrompt, savingPrompt }: { onEdit: (pane: PaneKind) => void; draft: BuilderDraft; onSavePrompt: (content: string) => void; savingPrompt: boolean }) {
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const [refined, setRefined] = useState(false);
   const [promptContent, setPromptContent] = useState(draft.promptContent);
 
   return <div className="editor-section"><SectionIntro number="02" title="Prompt and model" text="Keep the maker experience simple without hiding the architecture and governance decisions that matter." />
     <div className="grid gap-4 md:grid-cols-[1fr_220px]"><LabeledField label="AI Prompt"><button type="button" className="field-control w-full text-left" aria-label="Edit AI Prompt" onClick={() => onEdit("prompt")}><Bot /><span><b>{draft.promptName}</b><code>{draft.promptKey}</code></span><ChevronRight /></button></LabeledField><LabeledField label="Model"><button type="button" className="field-control compact w-full text-left" aria-label="Edit model" onClick={() => onEdit("model")}><Sparkles /><span><b>{draft.model.replace("gpt-", "GPT-").replace("-mini", " mini")}</b><code>EU Data Zone</code></span></button></LabeledField></div>
     <LabeledField label="Prompt instructions" hint="Changes are saved to the selected AI Prompt record in Dataverse."><div className="rounded-xl border border-border bg-white p-3"><textarea className="min-h-28 w-full resize-none bg-transparent font-mono text-sm leading-6 outline-none" value={promptContent} onChange={(event) => setPromptContent(event.target.value)} aria-label="Prompt instructions" /><div className="mt-2 flex items-center justify-between border-t border-border pt-2"><code className="rounded-md bg-cyan-50 px-2 py-1 text-xs text-brand-blue">{"{{account_context}}"}</code><Button type="button" size="sm" variant="outline" disabled={savingPrompt || !draft.promptId || promptContent === draft.promptContent} onClick={() => onSavePrompt(promptContent)}>{savingPrompt ? "Saving prompt…" : "Save prompt"}</Button></div></div></LabeledField>
-    <div className="prompt-assistant-trigger"><div><span><Sparkles /></span><p><b>Design a more consistent prompt</b><small>Analyze the selected objective, audience, and Dataverse context.</small></p></div><Button type="button" variant="outline" size="sm" onClick={() => setAssistantOpen(!assistantOpen)}><Sparkles data-icon="inline-start" />Help me improve this prompt</Button></div>
-    {assistantOpen && <section className="prompt-assistant" aria-label="Prompt assistant"><header><div><span><Sparkles /></span><p className="micro-label">Prompt assistant</p><h3>Improvements based on your recipe</h3></div><button type="button" aria-label="Close prompt assistant" onClick={() => setAssistantOpen(false)}>×</button></header><div className="assistant-context"><Database /><span><b>Context detected · Account + activities</b><small>6 fields, 1 relationship, 24 sample records, and an executive audience.</small></span><em>Ready to refine</em></div><div className="assistant-suggestions"><article><span>01</span><div><b>Reduce non-essential context</b><p>Exclude <code>description</code> when no changes exist. Preserve signal while reducing input size.</p></div><strong>−18% estimated tokens</strong></article><article><span>02</span><div><b>Make the output verifiable</b><p>Define fixed sections and explicitly identify unknown data.</p></div><strong>More consistent</strong></article><article><span>03</span><div><b>Adapt tone to the audience</b><p>Prioritize commercial impact, risk, and next action for executive readers.</p></div><strong>More useful</strong></article></div><footer><p><CheckCircle /> The proposal preserves the <code>{"{{account_context}}"}</code> input and the rules against invented information.</p><Button type="button" onClick={() => { setRefined(true); setPromptContent((current) => `${current.trim()}\n\nUse fixed sections. State unknown when information is absent. Prioritize business impact, risk, and the next action.`); }} disabled={refined}><Check data-icon="inline-start" />{refined ? "Refined version applied" : "Apply refined version"}</Button></footer></section>}
-    <div className="input-grid"><div><p className="field-caption">Runtime inputs</p><span><Database />{"{{account_context}}"}<small>JSON · compiled from FetchXML</small></span><span><Clock />{"{{generated_at}}"}<small>DateTime · Europe/Madrid</small></span></div><aside><p>Estimate · {refined ? "1,017" : "1,240"} tokens per run</p><b>≈ €{refined ? "0.0007" : "0.0009"}</b><small>{refined ? "Refined version · estimated 18% saving." : "Calculated from the current 24-record sample."}</small></aside></div>
+    <div className="prompt-assistant-trigger"><div><span><Sparkles /></span><p><b>Build the prompt from business intent</b><small>A guided assistant combines purpose, audience, format, and the selected Dataverse context.</small></p></div><Button type="button" variant="outline" size="sm" onClick={() => setAssistantOpen(true)}><Sparkles data-icon="inline-start" />Design with assistant</Button></div>
+    <div className="input-grid"><div><p className="field-caption">Runtime inputs</p><span><Database />{"{{account_context}}"}<small>JSON · compiled from FetchXML</small></span><span><Clock />{"{{generated_at}}"}<small>DateTime · Europe/Madrid</small></span></div><aside><p>Estimate · 1,240 tokens per run</p><b>≈ €0.0009</b><small>Calculated from the current 24-record sample.</small></aside></div>
+    {assistantOpen && <PromptAssistantPane draft={draft} onClose={() => setAssistantOpen(false)} onApply={(prompt) => { setPromptContent(prompt); setAssistantOpen(false); }} />}
   </div>;
 }
 

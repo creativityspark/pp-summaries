@@ -166,6 +166,14 @@ export interface DataversePreviewInput {
   limit?: number;
 }
 
+export function limitFetchXmlForPreview(fetchXml: string, limit: number) {
+  const safeLimit = Math.max(1, Math.floor(limit));
+  return fetchXml.replace(/<fetch\b([^>]*)>/i, (_match, attributes: string) => {
+    const withoutTop = attributes.replace(/\s+top=(['"])[^'"]*\1/i, "");
+    return `<fetch${withoutTop} top="${safeLimit}">`;
+  });
+}
+
 export function useDataverseRecordPreview() {
   return useMutation({
     mutationFn: async ({ logicalName, entitySetName, fetchXml, limit = 10 }: DataversePreviewInput) => {
@@ -188,7 +196,7 @@ export function useDataverseRecordPreview() {
         connectorOperation: {
           tableName: connectorName,
           operationName: "ListRecords",
-          parameters: { entityName: entitySetName, fetchXml, $top: limit },
+          parameters: { entityName: entitySetName, fetchXml: limitFetchXmlForPreview(fetchXml, limit) },
         },
       });
       return mapDataverseRecords(result).slice(0, limit);

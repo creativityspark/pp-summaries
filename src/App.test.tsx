@@ -16,6 +16,15 @@ const renderRoute = (route: string) => {
 };
 
 describe("Creativity Spark Summary Studio", () => {
+  it("bundles the sidebar brand instead of depending on an external image host", async () => {
+    renderRoute("/");
+
+    const brand = await screen.findByRole("img", { name: "Creativity Spark" });
+    const image = brand.querySelector("img");
+    expect(image).not.toBeNull();
+    expect(image?.getAttribute("src")).not.toContain("delivery.rocketcdn.me");
+  });
+
   it("positions the product as a configurable summary automation studio", async () => {
     renderRoute("/");
 
@@ -216,17 +225,34 @@ describe("Creativity Spark Summary Studio", () => {
     expect(screen.getByText("Estimate · 1,240 tokens per run")).toBeInTheDocument();
   });
 
-  it("helps the maker refine the prompt from the selected Dataverse context", async () => {
+  it("guides the maker through a prompt design wizard and applies the generated draft", async () => {
     renderRoute("/configurations/account-operations");
 
     fireEvent.click(await screen.findByRole("button", { name: /Prompt and model/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Help me improve this prompt/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Design with assistant/ }));
 
-    expect(screen.getByText("Prompt assistant")).toBeInTheDocument();
-    expect(screen.getByText("Context detected · Account + activities")).toBeInTheDocument();
-    expect(screen.getByText("Reduce non-essential context")).toBeInTheDocument();
-    expect(screen.getByText("−18% estimated tokens")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Apply refined version" })).toBeInTheDocument();
+    const assistant = screen.getByRole("complementary", { name: "Prompt design assistant" });
+    expect(assistant).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "What should this summary achieve?" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Summary objective"), { target: { value: "Prepare account managers before a customer call." } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue to output" }));
+    expect(screen.getByRole("heading", { name: "Shape the answer" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Generate prompt draft" }));
+    expect(screen.getByRole("heading", { name: "Review the generated prompt" })).toBeInTheDocument();
+    expect((screen.getByLabelText("Generated prompt draft") as HTMLTextAreaElement).value).toContain("{{account_context}}");
+    fireEvent.click(screen.getByRole("button", { name: "Use this prompt" }));
+    expect(screen.queryByRole("complementary", { name: "Prompt design assistant" })).not.toBeInTheDocument();
+    expect((screen.getByLabelText("Prompt instructions") as HTMLTextAreaElement).value).toContain("Prepare account managers");
+  });
+
+  it("keeps table names and logical names visually separated in the table picker", async () => {
+    renderRoute("/configurations/account-operations");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Change source table" }));
+    const option = screen.getByRole("button", { name: "Accounts · account" });
+    expect(option.querySelector("b")).toHaveTextContent("Accounts");
+    expect(option.querySelector("code")).toHaveTextContent("account · accounts");
+    expect(option.querySelector("b")).not.toBe(option.querySelector("code"));
   });
 
   it("previews the specialized cloud flow contract generated from the recipe", async () => {

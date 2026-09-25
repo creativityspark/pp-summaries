@@ -330,3 +330,29 @@ body:has(.edit-pane) { overflow:hidden; }.studio-shell:has(.edit-pane) { height:
 .query-output svg { width:14px; }.query-output div { flex:1; }.query-output small,.query-output b { display:block; }.query-output small { font-size:9px; color:var(--muted-foreground); }.query-output b { font-size:11px; color:var(--brand-navy); }.query-output > code { font-size:10px; color:var(--muted-foreground); }
 .query-designer-pane footer { align-items:center; }.query-limit { margin-right:auto; }.query-limit label { display:flex; align-items:center; gap:8px; font-size:10px; font-weight:650; color:var(--muted-foreground); }.query-limit input { width:72px; height:30px; border:1px solid var(--border); border-radius:7px; padding:0 8px; font-size:11px; color:var(--brand-navy); }
 @media (max-width:720px) { .studio-page.builder-page { padding-inline:10px; }.query-mode-tabs { grid-template-columns:1fr; }.query-designer-pane footer { flex-wrap:wrap; }.query-limit { width:100%; } }
+
+/* Prompt design assistant: a compact model-driven wizard, not another page in the BPF. */
+.edit-pane section > button > div { min-width:0; flex:1; }
+.edit-pane section > button > div b,.edit-pane section > button > div code { display:block; }
+.edit-pane section > button > div code { margin-top:3px; color:var(--muted-foreground); }
+.edit-pane.prompt-wizard-pane { width:min(560px,100vw); }
+.editor-section:has(.edit-pane) { animation:none!important; transform:none!important; }
+.prompt-wizard-progress { display:grid; flex:0 0 auto; grid-template-columns:repeat(3,1fr); border-bottom:1px solid var(--border); background:#f7fafc; padding:10px 18px; }
+.prompt-wizard-progress span { position:relative; display:flex; align-items:center; gap:7px; font-size:11px; font-weight:650; color:var(--muted-foreground); }
+.prompt-wizard-progress span:not(:last-child)::after { position:absolute; top:50%; right:12px; width:34%; height:1px; background:#cbdbe3; content:""; }
+.prompt-wizard-progress i { display:grid; width:23px; height:23px; place-items:center; border:1px solid var(--border); border-radius:50%; background:#fff; font-family:monospace; font-size:9px; font-style:normal; }
+.prompt-wizard-progress .active { color:var(--brand-navy); }.prompt-wizard-progress .active i { border-color:var(--brand-cyan); background:var(--brand-blue); color:#fff; box-shadow:0 0 0 4px rgb(0 191 211 / .10); }
+.prompt-wizard-progress .complete { color:#087c63; }.prompt-wizard-progress .complete i { border-color:#9ee0d0; background:#ecfbf6; color:#087c63; }.prompt-wizard-progress svg { width:12px; }
+.edit-pane .prompt-wizard-body { padding:20px 22px 24px; }
+.prompt-wizard-stage h3 { margin-top:5px; font-family:var(--font-display); font-size:25px; font-weight:600; letter-spacing:-.025em; color:var(--brand-navy); }
+.wizard-lead { max-width:46ch; margin-top:5px; font-size:12px; line-height:1.55; color:var(--muted-foreground); }
+.prompt-wizard-stage .studio-field { margin-top:18px; }.prompt-wizard-stage .studio-field > span { font-size:10px; }
+.prompt-wizard-stage textarea,.prompt-wizard-stage select { width:100%; border:1px solid var(--border); border-radius:9px; background:#fff; padding:10px 11px; font-size:13px; line-height:1.5; color:var(--brand-navy); outline:none; }
+.prompt-wizard-stage select { height:42px; padding-block:0; }.prompt-wizard-stage textarea:focus,.prompt-wizard-stage select:focus { border-color:#78ccdc; box-shadow:0 0 0 3px rgb(0 191 211 / .10); }
+.wizard-context { display:flex; gap:10px; margin-top:18px; border:1px solid #bce7de; border-radius:9px; background:#f1fbf7; padding:11px; color:#087c63; }
+.wizard-context > svg { width:17px; flex:0 0 17px; }.wizard-context b { display:block; font-size:12px; }.wizard-context p { margin-top:3px; font-size:10px; line-height:1.45; color:#467068; }.wizard-context code { color:#007f99; }
+.wizard-guardrails { margin-top:18px; }.wizard-guardrails > label { display:flex; align-items:flex-start; gap:10px; border-bottom:1px solid var(--border); padding:10px 2px; }.wizard-guardrails input { width:16px; height:16px; margin-top:2px; accent-color:var(--brand-blue); }.wizard-guardrails b,.wizard-guardrails small { display:block; }.wizard-guardrails b { font-size:12px; color:var(--brand-navy); }.wizard-guardrails small { margin-top:2px; font-size:10px; line-height:1.4; color:var(--muted-foreground); }
+.prompt-wizard-stage .generated-prompt { height:clamp(270px,calc(100dvh - 433px),360px); min-height:270px; margin-top:16px; resize:none; background:#001f3b; font-family:monospace; font-size:11px; line-height:1.6; color:#dafaff; }
+.wizard-validation { display:flex; align-items:center; gap:9px; margin-top:10px; border:1px solid #bce7de; border-radius:8px; background:#f1fbf7; padding:9px 10px; color:#087c63; }.wizard-validation svg { width:16px; }.wizard-validation b,.wizard-validation small { display:block; }.wizard-validation b { font-size:11px; }.wizard-validation small { margin-top:2px; font-size:9px; color:#467068; }
+.prompt-wizard-pane footer { align-items:center; }
+@media (max-width:620px) { .prompt-wizard-progress span { font-size:0; }.prompt-wizard-progress span:not(:last-child)::after { width:55%; }.prompt-wizard-stage .grid { grid-template-columns:1fr; } }
