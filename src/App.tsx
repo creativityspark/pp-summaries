@@ -35,7 +35,13 @@ import { useUserViews } from "@/hooks/useUserViews";
 import { useDataverseColumns, useDataverseRecordPreview, useDataverseRelationships, useDataverseTableMetadata, useDataverseTables } from "@/hooks/useDataverseCatalog";
 import type { DataverseRelationshipMetadata, DataverseTableMetadata } from "@/lib/summaryConfiguration";
 
-const BRAND_MARK = new URL("../public/creativity-spark-mark.png", import.meta.url).href;
+function BrandMark({ className }: { className?: string }) {
+  return <svg className={className} viewBox="0 0 64 94" fill="none" aria-hidden="true" focusable="false">
+    <defs><linearGradient id="spark-brand-gradient" x1="12" y1="8" x2="54" y2="74" gradientUnits="userSpaceOnUse"><stop stopColor="#02C8DD" /><stop offset="1" stopColor="#0085C8" /></linearGradient></defs>
+    <path d="M35.8 4.5c8.8 7.7 10.6 17.1 2.2 24.8L20.4 45.5c-4.2 3.9-4 8.2.7 12.3l7.7 6.8-8.4 8.1-8.5-7.5C1.4 55.9 1.2 42.9 11 33.9l16.8-15.4c4.5-4.1 5.5-8.5 2-12.6L35.8 0v4.5Z" fill="url(#spark-brand-gradient)" />
+    <path d="m43.7 20.1 8.4 7.4c10.6 9.3 10.8 22.2 1 31.2L36.3 74.1c-4.5 4.1-5.4 8.4-2 12.6l-6 5.9v-4.5c-8.8-7.7-10.6-17.1-2.2-24.8l17.6-16.2c4.2-3.9 4-8.2-.7-12.3l-7.7-6.8 8.4-7.9Z" fill="url(#spark-brand-gradient)" />
+  </svg>;
+}
 
 const navItems = [
   { to: "/", label: "Configurations", icon: Grid, activeIcon: Grid20Filled, end: true },
@@ -52,14 +58,14 @@ function Shell({ children }: { children: ReactNode }) {
       <aside className="studio-sidebar">
         <div className="px-5 pt-6">
           <div role="img" aria-label="Creativity Spark" className="flex items-center gap-3 py-1">
-            <img src={BRAND_MARK} alt="" width="42" height="52" className="h-[52px] w-[42px] object-contain" />
+            <BrandMark className="h-[52px] w-[42px] shrink-0" />
             <div className="min-w-0">
               <p className="whitespace-nowrap text-[21px] font-bold leading-none tracking-[-.035em] text-white">Creativity Spark</p>
               <p className="mt-2 whitespace-nowrap text-[8px] tracking-[.08em] text-white/65">We turn your ideas into brilliant apps</p>
             </div>
           </div>
           <div className="mt-5 flex items-center gap-2 border-t border-white/10 pt-4">
-            <img src={BRAND_MARK} alt="" width="26" height="26" className="size-6 object-contain" />
+            <BrandMark className="size-6 shrink-0" />
             <div><p className="text-[13px] font-semibold text-white">Summary Studio</p><p className="text-[9px] font-semibold uppercase tracking-[.18em] text-white/38">Power Platform compiler</p></div>
           </div>
         </div>
@@ -251,8 +257,7 @@ function PromptStep({ onEdit, draft, onSavePrompt, savingPrompt }: { onEdit: (pa
 
   return <div className="editor-section"><SectionIntro number="02" title="Prompt and model" text="Keep the maker experience simple without hiding the architecture and governance decisions that matter." />
     <div className="grid gap-4 md:grid-cols-[1fr_220px]"><LabeledField label="AI Prompt"><button type="button" className="field-control w-full text-left" aria-label="Edit AI Prompt" onClick={() => onEdit("prompt")}><Bot /><span><b>{draft.promptName}</b><code>{draft.promptKey}</code></span><ChevronRight /></button></LabeledField><LabeledField label="Model"><button type="button" className="field-control compact w-full text-left" aria-label="Edit model" onClick={() => onEdit("model")}><Sparkles /><span><b>{draft.model.replace("gpt-", "GPT-").replace("-mini", " mini")}</b><code>EU Data Zone</code></span></button></LabeledField></div>
-    <LabeledField label="Prompt instructions" hint="Changes are saved to the selected AI Prompt record in Dataverse."><div className="rounded-xl border border-border bg-white p-3"><textarea className="min-h-28 w-full resize-none bg-transparent font-mono text-sm leading-6 outline-none" value={promptContent} onChange={(event) => setPromptContent(event.target.value)} aria-label="Prompt instructions" /><div className="mt-2 flex items-center justify-between border-t border-border pt-2"><code className="rounded-md bg-cyan-50 px-2 py-1 text-xs text-brand-blue">{"{{account_context}}"}</code><Button type="button" size="sm" variant="outline" disabled={savingPrompt || !draft.promptId || promptContent === draft.promptContent} onClick={() => onSavePrompt(promptContent)}>{savingPrompt ? "Saving prompt…" : "Save prompt"}</Button></div></div></LabeledField>
-    <div className="prompt-assistant-trigger"><div><span><Sparkles /></span><p><b>Build the prompt from business intent</b><small>A guided assistant combines purpose, audience, format, and the selected Dataverse context.</small></p></div><Button type="button" variant="outline" size="sm" onClick={() => setAssistantOpen(true)}><Sparkles data-icon="inline-start" />Design with assistant</Button></div>
+    <div className="studio-field"><span>Prompt instructions</span><div className="prompt-instructions-editor" role="group" aria-label="Prompt instructions editor"><div className="prompt-editor-assistant"><span><Sparkles /></span><p><b>Prompt assistant</b><small>Build from purpose, audience, format, and the active Dataverse context.</small></p><Button type="button" variant="outline" size="sm" onClick={() => setAssistantOpen(true)}><Sparkles data-icon="inline-start" />Design with assistant</Button></div><textarea className="min-h-[220px] w-full resize-none bg-transparent px-3 py-3 font-mono text-sm leading-6 outline-none" value={promptContent} onChange={(event) => setPromptContent(event.target.value)} aria-label="Prompt instructions" /><div className="prompt-editor-footer"><code>{"{{account_context}}"}</code><span>Dataverse AI Prompt</span><Button type="button" size="sm" variant="outline" disabled={savingPrompt || !draft.promptId || promptContent === draft.promptContent} onClick={() => onSavePrompt(promptContent)}>{savingPrompt ? "Saving prompt…" : "Save prompt"}</Button></div></div><small>Changes are saved to the selected AI Prompt record in Dataverse.</small></div>
     <div className="input-grid"><div><p className="field-caption">Runtime inputs</p><span><Database />{"{{account_context}}"}<small>JSON · compiled from FetchXML</small></span><span><Clock />{"{{generated_at}}"}<small>DateTime · Europe/Madrid</small></span></div><aside><p>Estimate · 1,240 tokens per run</p><b>≈ €0.0009</b><small>Calculated from the current 24-record sample.</small></aside></div>
     {assistantOpen && <PromptAssistantPane draft={draft} onClose={() => setAssistantOpen(false)} onApply={(prompt) => { setPromptContent(prompt); setAssistantOpen(false); }} />}
   </div>;

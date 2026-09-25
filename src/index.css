@@ -356,3 +356,11 @@ body:has(.edit-pane) { overflow:hidden; }.studio-shell:has(.edit-pane) { height:
 .wizard-validation { display:flex; align-items:center; gap:9px; margin-top:10px; border:1px solid #bce7de; border-radius:8px; background:#f1fbf7; padding:9px 10px; color:#087c63; }.wizard-validation svg { width:16px; }.wizard-validation b,.wizard-validation small { display:block; }.wizard-validation b { font-size:11px; }.wizard-validation small { margin-top:2px; font-size:9px; color:#467068; }
 .prompt-wizard-pane footer { align-items:center; }
 @media (max-width:620px) { .prompt-wizard-progress span { font-size:0; }.prompt-wizard-progress span:not(:last-child)::after { width:55%; }.prompt-wizard-stage .grid { grid-template-columns:1fr; } }
+
+/* The assistant belongs to the prompt editor, while the canvas remains tall enough to review a real prompt. */
+.prompt-instructions-editor { overflow:hidden; border:1px solid var(--border); border-radius:10px; background:#fff; }
+.prompt-editor-assistant { display:flex; align-items:center; gap:9px; border-bottom:1px solid var(--border); background:#f3fafc; padding:8px 10px; }
+.prompt-editor-assistant > span { display:grid; width:28px; height:28px; flex:0 0 28px; place-items:center; border-radius:7px; background:var(--brand-navy); color:var(--brand-cyan); }
+.prompt-editor-assistant > span svg { width:14px; }.prompt-editor-assistant p { min-width:0; flex:1; }.prompt-editor-assistant b,.prompt-editor-assistant small { display:block; }.prompt-editor-assistant b { font-size:11px; color:var(--brand-navy); }.prompt-editor-assistant small { margin-top:1px; font-size:9px; color:var(--muted-foreground); }
+.prompt-editor-footer { display:flex; align-items:center; gap:10px; border-top:1px solid var(--border); background:#fbfdfe; padding:7px 10px; }.prompt-editor-footer code { border-radius:5px; background:#e9fafe; padding:4px 7px; font-size:10px; color:var(--brand-blue); }.prompt-editor-footer > span { flex:1; font-size:9px; color:var(--muted-foreground); }
+@media (max-width:620px) { .prompt-editor-assistant small,.prompt-editor-footer > span { display:none; }.prompt-editor-assistant > button { padding-inline:7px; } }

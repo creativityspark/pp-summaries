@@ -16,13 +16,12 @@ const renderRoute = (route: string) => {
 };
 
 describe("Creativity Spark Summary Studio", () => {
-  it("bundles the sidebar brand instead of depending on an external image host", async () => {
+  it("embeds the sidebar brand without relying on a hosted or packaged image path", async () => {
     renderRoute("/");
 
     const brand = await screen.findByRole("img", { name: "Creativity Spark" });
-    const image = brand.querySelector("img");
-    expect(image).not.toBeNull();
-    expect(image?.getAttribute("src")).not.toContain("delivery.rocketcdn.me");
+    expect(brand.querySelector("svg")).not.toBeNull();
+    expect(brand.querySelector("img")).toBeNull();
   });
 
   it("positions the product as a configurable summary automation studio", async () => {
@@ -223,6 +222,9 @@ describe("Creativity Spark Summary Studio", () => {
     expect(screen.getByText("GPT-4.1 mini")).toBeInTheDocument();
     expect(screen.getAllByText("{{account_context}}")).toHaveLength(2);
     expect(screen.getByText("Estimate · 1,240 tokens per run")).toBeInTheDocument();
+    const editor = screen.getByRole("group", { name: "Prompt instructions editor" });
+    expect(editor).toContainElement(screen.getByRole("button", { name: /Design with assistant/ }));
+    expect(screen.getByLabelText("Prompt instructions")).toHaveClass("min-h-[220px]");
   });
 
   it("guides the maker through a prompt design wizard and applies the generated draft", async () => {
