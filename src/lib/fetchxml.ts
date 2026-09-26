@@ -261,3 +261,26 @@ export function emptyBuilderState(entity: string, top = 25): FetchXmlBuilderStat
     top,
   };
 }
+
+/**
+ * Pretty-prints FetchXML with one element per line and two-space indentation.
+ * Saved views store FetchXML on a single line, which is unreadable in the
+ * query editor. Text content is preserved; already formatted XML is
+ * re-flowed consistently.
+ */
+export function formatFetchXml(fetchXml: string): string {
+  const compact = fetchXml.replace(/>\s+</g, "><").trim();
+  if (!compact.startsWith("<")) return fetchXml;
+  const tokens = compact.match(/<[^>]+>|[^<]+/g) ?? [];
+  const lines: string[] = [];
+  let depth = 0;
+  for (const token of tokens) {
+    if (!token.trim()) continue;
+    const isClosing = /^<\//.test(token);
+    const isSelfClosing = /\/>$/.test(token) || /^<\?/.test(token) || /^<!/.test(token);
+    if (isClosing) depth = Math.max(0, depth - 1);
+    lines.push(`${"  ".repeat(depth)}${token.trim()}`);
+    if (token.startsWith("<") && !isClosing && !isSelfClosing) depth += 1;
+  }
+  return lines.join("\n");
+}

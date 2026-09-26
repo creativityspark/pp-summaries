@@ -13,13 +13,92 @@ import {
 } from "@/lib/summaryConfiguration";
 
 const client = getClient(dataSourcesInfo);
-const connectorName = "commondataserviceforapps";
+
+/**
+ * Native Dataverse Web API operations for the studio catalog.
+ *
+ * The generic connector operation (`commondataserviceforapps.ListRecords`)
+ * cannot be used here: the app's connector reference has no dataset, so the
+ * connector runtime rejects the call with "Invalid organization URL 'null'".
+ * The SDK's Dataverse executor, which the generated services use, resolves
+ * the organization from the app's `default.cds` database reference instead.
+ * It only runs operations declared on a Dataverse data source, so we register
+ * these GET operations on the `accounts` data source at module load. The
+ * SDK keeps a single shared reference to `dataSourcesInfo`, so every client
+ * created from it sees the additional operations. Path placeholders are
+ * substituted with `encodeURIComponent`, which is why query values live in
+ * the path template.
+ */
+const NATIVE_DATA_SOURCE = "accounts";
+const ENTITY_SELECT = "LogicalName,EntitySetName,PrimaryIdAttribute,PrimaryNameAttribute,DisplayCollectionName";
+const ENTITY_EXPAND =
+  "Attributes($select=LogicalName,DisplayName,AttributeType,IsValidForRead,IsValidForUpdate)," +
+  "OneToManyRelationships($select=SchemaName,ReferencedEntity,ReferencedAttribute,ReferencingEntity,ReferencingAttribute)," +
+  "ManyToOneRelationships($select=SchemaName,ReferencedEntity,ReferencedAttribute,ReferencingEntity,ReferencingAttribute)";
+
+type NativeApiDefinition = {
+  path: string;
+  method: string;
+  parameters: Array<{ name: string; in: string; required: boolean; type: string; format?: string }>;
+};
+
+const nativeApis: Record<string, NativeApiDefinition> = {
+  StudioRunFetchXml: {
+    path: "/api/data/v9.0/{entitySetName}?fetchXml={fetchXml}&$top={top}",
+    method: "GET",
+    parameters: [
+      { name: "entitySetName", in: "path", required: true, type: "string", format: "dataverse-entity-set-name" },
+      { name: "fetchXml", in: "path", required: true, type: "string" },
+      { name: "top", in: "path", required: true, type: "string" },
+    ],
+  },
+  StudioListEntityDefinitions: {
+    path: `/api/data/v9.0/EntityDefinitions?$select=${encodeURIComponent(ENTITY_SELECT)}`,
+    method: "GET",
+    parameters: [],
+  },
+  StudioListCloudFlows: {
+    path:
+      "/api/data/v9.0/workflows?$select=workflowid,name,description,statecode,statuscode,category,type,createdon,modifiedon" +
+      "&$filter=category%20eq%205%20and%20type%20eq%201&$orderby=modifiedon%20desc&$top=200",
+    method: "GET",
+    parameters: [],
+  },
+  StudioGetSolution: {
+    path: "/api/data/v9.0/solutions?$select=solutionid,uniquename,friendlyname,version&$filter=uniquename%20eq%20'{uniqueName}'",
+    method: "GET",
+    parameters: [{ name: "uniqueName", in: "path", required: true, type: "string" }],
+  },
+  StudioGetEntityDefinition: {
+    path: `/api/data/v9.0/EntityDefinitions(LogicalName='{logicalName}')?$select=${encodeURIComponent(ENTITY_SELECT)}&$expand=${encodeURIComponent(ENTITY_EXPAND)}`,
+    method: "GET",
+    parameters: [{ name: "logicalName", in: "path", required: true, type: "string" }],
+  },
+};
+
+const nativeDataSource = (dataSourcesInfo as Record<string, { apis: Record<string, unknown> }>)[NATIVE_DATA_SOURCE];
+if (nativeDataSource) {
+  for (const [name, definition] of Object.entries(nativeApis)) {
+    if (!(name in nativeDataSource.apis)) nativeDataSource.apis[name] = definition;
+  }
+}
+
+export async function dataverseGet(operationName: keyof typeof nativeApis, body: Record<string, string>, failureMessage: string) {
+  const result = await client.executeAsync<unknown, unknown>({
+    dataverseRequest: {
+      action: "customapi",
+      parameters: { operationName, tableName: NATIVE_DATA_SOURCE, body },
+    },
+  });
+  unwrapResult(result, failureMessage);
+  return result;
+}
 
 const fallbackTables: DataverseTableMetadata[] = [
-  { logicalName: "account", entitySetName: "accounts", primaryIdAttribute: "accountid", displayName: "Accounts" },
-  { logicalName: "contact", entitySetName: "contacts", primaryIdAttribute: "contactid", displayName: "Contacts" },
-  { logicalName: "incident", entitySetName: "incidents", primaryIdAttribute: "incidentid", displayName: "Cases" },
-  { logicalName: "opportunity", entitySetName: "opportunities", primaryIdAttribute: "opportunityid", displayName: "Opportunities" },
+  { logicalName: "account", entitySetName: "accounts", primaryIdAttribute: "accountid", displayName: "Accounts", primaryNameAttribute: "name" },
+  { logicalName: "contact", entitySetName: "contacts", primaryIdAttribute: "contactid", displayName: "Contacts", primaryNameAttribute: "fullname" },
+  { logicalName: "incident", entitySetName: "incidents", primaryIdAttribute: "incidentid", displayName: "Cases", primaryNameAttribute: "title" },
+  { logicalName: "opportunity", entitySetName: "opportunities", primaryIdAttribute: "opportunityid", displayName: "Opportunities", primaryNameAttribute: "name" },
 ].sort((a, b) => a.displayName.localeCompare(b.displayName));
 
 const fallbackColumns: Record<string, DataverseColumnMetadata[]> = {
@@ -60,26 +139,37 @@ const fallbackRelationships: Record<string, DataverseRelationshipMetadata[]> = {
   ],
 };
 
-function isPowerAppsRuntime() {
+export function isPowerAppsRuntime() {
   if (typeof window === "undefined") return false;
   return window.parent !== window || window.location.hostname.endsWith("powerapps.com");
 }
 
+/** Runs FetchXML against Dataverse through the native Web API path. */
+export async function runFetchXml(
+  entitySetName: string,
+  fetchXml: string,
+  limit: number,
+  failureMessage = "Dataverse could not execute this query.",
+) {
+  const safeLimit = Math.max(1, Math.floor(limit));
+  const result = await dataverseGet(
+    "StudioRunFetchXml",
+    { entitySetName, fetchXml: prepareFetchXmlForPreview(fetchXml), top: String(safeLimit) },
+    failureMessage,
+  );
+  return mapDataverseRecords(result).slice(0, safeLimit);
+}
+
 async function loadEntityMetadata(logicalName: string) {
-  const escapedName = logicalName.replaceAll("'", "''");
-  const result = await client.executeAsync<Record<string, unknown>, unknown>({
-    connectorOperation: {
-      tableName: connectorName,
-      operationName: "ListRecords",
-      parameters: {
-        entityName: "EntityDefinitions",
-        $select: "LogicalName,EntitySetName,PrimaryIdAttribute,DisplayCollectionName",
-        $filter: `LogicalName eq '${escapedName}'`,
-        $expand: "Attributes($select=LogicalName,DisplayName,AttributeType,IsValidForRead,IsValidForUpdate),OneToManyRelationships($select=SchemaName,ReferencedEntity,ReferencedAttribute,ReferencingEntity,ReferencingAttribute),ManyToOneRelationships($select=SchemaName,ReferencedEntity,ReferencedAttribute,ReferencingEntity,ReferencingAttribute)",
-        $top: 1,
-      },
-    },
-  });
+  const result = await dataverseGet(
+    "StudioGetEntityDefinition",
+    { logicalName: logicalName.replaceAll("'", "''") },
+    "Dataverse metadata request failed.",
+  );
+  const data = (result as { data?: unknown }).data;
+  if (data && typeof data === "object" && !Array.isArray(data) && "LogicalName" in data) {
+    return data as Record<string, unknown>;
+  }
   return mapDataverseRecords(result)[0] ?? {};
 }
 
@@ -90,13 +180,11 @@ export function useDataverseTables() {
     queryFn: async () => {
       if (!isPowerAppsRuntime()) return fallbackTables;
       try {
-        const result = await client.executeAsync<Record<string, unknown>, unknown>({
-          connectorOperation: {
-            tableName: connectorName,
-            operationName: "ListRecords",
-            parameters: { entityName: "EntityDefinitions", $select: "LogicalName,EntitySetName,PrimaryIdAttribute,DisplayCollectionName", $top: 5000 },
-          },
-        });
+        const result = await dataverseGet(
+          "StudioListEntityDefinitions",
+          {},
+          "Dataverse table catalog request failed.",
+        );
         const tables = mapDataverseTables(result);
         return tables.length ? tables : fallbackTables;
       } catch {
@@ -166,12 +254,33 @@ export interface DataversePreviewInput {
   limit?: number;
 }
 
-export function limitFetchXmlForPreview(fetchXml: string, limit: number) {
-  const safeLimit = Math.max(1, Math.floor(limit));
+/**
+ * The Dataverse connector paginates ListRecords by injecting `page`/`count`
+ * into the FetchXML, and Dataverse rejects `top` combined with paging
+ * ("The top attribute can't be specified with paging attribute page").
+ * For previews we therefore strip every limit/paging attribute from the
+ * `<fetch>` element and apply the limit with the OData `$top` parameter,
+ * which Dataverse accepts alongside FetchXML.
+ */
+export function prepareFetchXmlForPreview(fetchXml: string) {
   return fetchXml.replace(/<fetch\b([^>]*)>/i, (_match, attributes: string) => {
-    const withoutTop = attributes.replace(/\s+top=(['"])[^'"]*\1/i, "");
-    return `<fetch${withoutTop} top="${safeLimit}">`;
+    const cleaned = attributes
+      .replace(/\s+(top|page|count|paging-cookie|returntotalrecordcount)=(['"])[^'"]*\2/gi, "")
+      .replace(/\s+$/, "");
+    return `<fetch${cleaned}>`;
   });
+}
+
+function unwrapResult(result: unknown, fallbackMessage: string) {
+  const outcome = result as
+    | { success?: boolean; error?: { message?: string; status?: number } }
+    | null;
+  if (outcome && outcome.success === false) {
+    const message = outcome.error?.message?.trim() || fallbackMessage;
+    throw new Error(
+      outcome.error?.status ? `${message} (HTTP ${outcome.error.status})` : message,
+    );
+  }
 }
 
 export function useDataverseRecordPreview() {
@@ -192,14 +301,7 @@ export function useDataverseRecordPreview() {
         };
         return (samples[logicalName] ?? []).slice(0, limit);
       }
-      const result = await client.executeAsync<Record<string, unknown>, unknown>({
-        connectorOperation: {
-          tableName: connectorName,
-          operationName: "ListRecords",
-          parameters: { entityName: entitySetName, fetchXml: limitFetchXmlForPreview(fetchXml, limit) },
-        },
-      });
-      return mapDataverseRecords(result).slice(0, limit);
+      return runFetchXml(entitySetName, fetchXml, limit);
     },
   });
 }

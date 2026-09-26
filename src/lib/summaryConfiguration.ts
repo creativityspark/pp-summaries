@@ -33,6 +33,7 @@ export interface DataverseTableMetadata {
   entitySetName: string;
   primaryIdAttribute: string;
   displayName: string;
+  primaryNameAttribute?: string;
 }
 
 export interface DataverseColumnMetadata {
@@ -64,8 +65,10 @@ function localizedLabel(value: unknown): string {
 }
 
 function responseValue(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
   if (!value || typeof value !== "object") return [];
   const root = value as Record<string, unknown>;
+  if (Array.isArray(root.data)) return root.data;
   const data = root.data && typeof root.data === "object" ? root.data as Record<string, unknown> : root;
   const items = data.value ?? data.Value;
   return Array.isArray(items) ? items : [];
@@ -81,7 +84,14 @@ export function mapDataverseTables(value: unknown): DataverseTableMetadata[] {
     const entitySetName = String(raw.EntitySetName ?? raw.entitySetName ?? "");
     const primaryIdAttribute = String(raw.PrimaryIdAttribute ?? raw.primaryIdAttribute ?? `${logicalName}id`);
     const displayName = localizedLabel(raw.DisplayCollectionName ?? raw.displayCollectionName) || logicalName;
-    return { logicalName, entitySetName, primaryIdAttribute, displayName };
+    const primaryNameAttribute = raw.PrimaryNameAttribute ?? raw.primaryNameAttribute;
+    return {
+      logicalName,
+      entitySetName,
+      primaryIdAttribute,
+      displayName,
+      ...(primaryNameAttribute ? { primaryNameAttribute: String(primaryNameAttribute) } : {}),
+    };
   }).filter((table) => table.logicalName && table.entitySetName)
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
 }
@@ -96,6 +106,9 @@ export function mapDataverseTableDefinition(value: unknown, fallback: DataverseT
     entitySetName: String(raw.EntitySetName ?? raw.entitySetName ?? fallback.entitySetName),
     primaryIdAttribute: String(raw.PrimaryIdAttribute ?? raw.primaryIdAttribute ?? fallback.primaryIdAttribute),
     displayName: localizedLabel(raw.DisplayCollectionName ?? raw.displayCollectionName) || fallback.displayName,
+    primaryNameAttribute: String(
+      raw.PrimaryNameAttribute ?? raw.primaryNameAttribute ?? fallback.primaryNameAttribute ?? "name",
+    ),
   };
 }
 
@@ -318,4 +331,29 @@ export function validateSummaryConfiguration(draft: SummaryConfigurationDraft): 
 
 export function buildPublishSignal(): Record<string, unknown> {
   return { statuscode: 787000001 };
+}
+
+const AVERAGE_CHARS_PER_TOKEN = 4;
+const TOKENS_PER_SOURCE_FIELD = 24;
+const TOKENS_PER_RELATED_RECORD = 90;
+const RESPONSE_TOKEN_ALLOWANCE = 350;
+
+/**
+ * Rough per-run token estimate for a recipe: prompt instructions plus the
+ * compiled Dataverse context and a response allowance. Intended for guidance,
+ * not billing.
+ */
+export function estimateRecipeTokens(input: {
+  promptContent: string;
+  sourceFields: string[];
+  relationships: Array<Record<string, unknown>>;
+}): number {
+  const promptTokens = Math.ceil(input.promptContent.trim().length / AVERAGE_CHARS_PER_TOKEN);
+  const fieldTokens = input.sourceFields.length * TOKENS_PER_SOURCE_FIELD;
+  const relatedTokens = input.relationships.reduce((total, relationship) => {
+    const maxRecords = Number(relationship.maxRecords ?? 10);
+    return total + Math.max(1, Math.min(maxRecords, 50)) * TOKENS_PER_RELATED_RECORD;
+  }, 0);
+  const total = promptTokens + fieldTokens + relatedTokens + RESPONSE_TOKEN_ALLOWANCE;
+  return Math.ceil(total / 10) * 10;
 }

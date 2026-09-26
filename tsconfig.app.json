@@ -5,7 +5,7 @@
     "useDefineForClassFields": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "types": ["vite/client"],
+    "types": ["vite/client", "@testing-library/jest-dom"],
     "skipLibCheck": true,
 
     /* Path aliases */
@@ -30,15 +30,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": [
-    "src/App.tsx",
-    "src/main.tsx",
-    "src/hooks/useStudioRuntime.ts",
-    "src/lib/**/*.ts",
-    "src/components/ui/avatar.tsx",
-    "src/components/ui/badge.tsx",
-    "src/components/ui/button.tsx",
-    "src/components/ui/switch.tsx",
-    "src/components/ui/tooltip.tsx"
-  ]
+  "include": ["src"]
 }

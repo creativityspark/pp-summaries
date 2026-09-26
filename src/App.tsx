@@ -1,6 +1,9 @@
 import {
+  Fragment,
+  useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
@@ -12,7 +15,19 @@ import {
   BreadcrumbDivider,
   BreadcrumbItem,
   Checkbox,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogSurface,
+  DialogTitle,
   Input,
+  Menu,
+  MenuItem,
+  MenuItemLink,
+  MenuList,
+  MenuPopover,
+  MenuTrigger,
   NavDrawer,
   NavDrawerBody,
   NavDrawerHeader,
@@ -28,9 +43,14 @@ import {
   TableHeaderCell,
   TableRow,
   Textarea,
+  Toast,
+  ToastBody,
+  ToastTitle,
+  Toaster,
   Toolbar,
   ToolbarButton,
   ToolbarDivider,
+  useToastController,
 } from "@fluentui/react-components";
 import { Apps20Regular as Blocks } from "@fluentui/react-icons/svg/apps";
 import { ArrowRight20Regular as ArrowRight } from "@fluentui/react-icons/svg/arrow-right";
@@ -45,8 +65,19 @@ import { Checkmark20Regular as Check } from "@fluentui/react-icons/svg/checkmark
 import { CheckmarkCircle20Regular as CheckCircle } from "@fluentui/react-icons/svg/checkmark-circle";
 import { ChevronRight20Regular as ChevronRight } from "@fluentui/react-icons/svg/chevron-right";
 import { Clock20Regular as Clock } from "@fluentui/react-icons/svg/clock";
+import { Copy20Regular as Copy } from "@fluentui/react-icons/svg/copy";
+import { Delete20Regular as Delete } from "@fluentui/react-icons/svg/delete";
+import {
+  DocumentText20Filled,
+  DocumentText20Regular as DocumentText,
+} from "@fluentui/react-icons/svg/document-text";
+import { ErrorCircle20Regular as ErrorCircle } from "@fluentui/react-icons/svg/error-circle";
+import { MoreHorizontal20Regular as More } from "@fluentui/react-icons/svg/more-horizontal";
+import { Open20Regular as OpenIcon } from "@fluentui/react-icons/svg/open";
+import { Warning20Regular as Warning } from "@fluentui/react-icons/svg/warning";
 import { Database20Regular as Database } from "@fluentui/react-icons/svg/database";
 import { Dismiss20Regular as Dismiss } from "@fluentui/react-icons/svg/dismiss";
+import { Person20Regular as Person } from "@fluentui/react-icons/svg/person";
 import { Flow20Regular as Flow } from "@fluentui/react-icons/svg/flow";
 import {
   Grid20Filled,
@@ -80,19 +111,39 @@ import {
   buildPublishSignal,
   buildRecordSelectionFetchXml,
   compileRecipe,
+  estimateRecipeTokens,
   getTargetEntityIdentity,
   validateSummaryConfiguration,
   type SummaryConfigurationDraft,
 } from "@/lib/summaryConfiguration";
 import { buildPromptDraft, type PromptWizardAnswers } from "@/lib/promptWizard";
+import { formatFetchXml } from "@/lib/fetchxml";
+import brandLogo from "@/assets/creativity-spark-mark.png?inline";
+import {
+  STUDIO_SOLUTION_UNIQUE_NAME,
+  cloudFlowRunUrl,
+  cloudFlowUrl,
+  relatedCloudFlows,
+  solutionUrl,
+  useCloudFlows,
+  useStudioSolution,
+} from "@/hooks/useCloudFlows";
+import { useOutputSummaries } from "@/hooks/useOutputSummaries";
 import {
   useCreateStudioConfiguration,
+  useCreateStudioPrompt,
+  useDeactivateStudioConfiguration,
+  useDeleteStudioConfiguration,
+  useSaveStudioPrompt,
   useStudioRuntime,
   useUpdateStudioConfiguration,
   useUpdateStudioPrompt,
   type StudioAccount,
   type StudioConfiguration,
   type StudioPrompt,
+  type StudioPromptInput,
+  type StudioRun,
+  type StudioRuntime,
 } from "@/hooks/useStudioRuntime";
 import { useSystemViews } from "@/hooks/useSystemViews";
 import { useUserViews } from "@/hooks/useUserViews";
@@ -104,6 +155,7 @@ import {
   useDataverseTables,
 } from "@/hooks/useDataverseCatalog";
 import type {
+  DataverseColumnMetadata,
   DataverseRelationshipMetadata,
   DataverseTableMetadata,
 } from "@/lib/summaryConfiguration";
@@ -142,30 +194,85 @@ function BrandMark({ className }: { className?: string }) {
   );
 }
 
-const navItems = [
-  {
-    to: "/",
-    label: "Configurations",
-    icon: Grid,
-    activeIcon: Grid20Filled,
-    end: true,
-  },
-  {
-    to: "/configurations/account-operations",
-    label: "Design summary",
-    icon: Braces,
-    activeIcon: Braces20Filled,
-  },
-  { to: "/runs", label: "Runs", icon: History, activeIcon: History },
-];
+const studioToasterId = "summary-studio-toaster";
+type ToastIntent = "success" | "error" | "info" | "warning";
+
+function useStudioToast() {
+  const { dispatchToast } = useToastController(studioToasterId);
+  return useCallback(
+    (intent: ToastIntent, title: string, body?: string) => {
+      dispatchToast(
+        <Toast>
+          <ToastTitle>{title}</ToastTitle>
+          {body ? <ToastBody>{body}</ToastBody> : null}
+        </Toast>,
+        { intent, timeout: intent === "error" ? 8000 : 4000 },
+      );
+    },
+    [dispatchToast],
+  );
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function BrandLogo() {
+  const [imageFailed, setImageFailed] = useState(false);
+  if (imageFailed) return <BrandMark />;
+  return (
+    <img
+      src={brandLogo}
+      alt=""
+      decoding="async"
+      onError={() => setImageFailed(true)}
+    />
+  );
+}
 
 function Shell({ children }: { children: ReactNode }) {
-  const { data } = useStudioRuntime();
+  const { data, refetch, isFetching } = useStudioRuntime();
   const live = data?.live ?? false;
+  const user = data?.user ?? null;
   const navigate = useNavigate();
   const location = useLocation();
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const environmentId = data?.environmentId ?? "";
+  const makerHome = environmentId
+    ? `https://make.powerapps.com/environments/${environmentId}/home`
+    : "https://make.powerapps.com";
+  const automateHome = environmentId
+    ? `https://make.powerautomate.com/environments/${environmentId}/flows`
+    : "https://make.powerautomate.com";
+  const tablesHome = environmentId
+    ? `https://make.powerapps.com/environments/${environmentId}/tables`
+    : "https://make.powerapps.com";
+  const solution = useStudioSolution();
+  const solutionHome = solutionUrl(environmentId, solution.data?.id ?? "");
+  const solutionLabel = solution.data?.friendlyName ?? STUDIO_SOLUTION_UNIQUE_NAME;
   const searchValue = new URLSearchParams(location.search).get("q") ?? "";
+  const firstConfigurationId = data?.configurations[0]?.id;
+  const designPath = firstConfigurationId
+    ? `/configurations/${firstConfigurationId}`
+    : "/configurations/new";
+  const navItems = [
+    { to: "/", label: "Configurations", icon: Grid, activeIcon: Grid20Filled },
+    {
+      to: designPath,
+      label: "Design summary",
+      icon: Braces,
+      activeIcon: Braces20Filled,
+    },
+    { to: "/prompts", label: "Prompts", icon: Bot, activeIcon: Bot },
+    {
+      to: "/summaries",
+      label: "Summaries",
+      icon: DocumentText,
+      activeIcon: DocumentText20Filled,
+    },
+    { to: "/runs", label: "Runs", icon: History, activeIcon: History },
+  ];
   const followInternalLink = (
     event: ReactMouseEvent<HTMLElement>,
     to: string,
@@ -185,9 +292,13 @@ function Shell({ children }: { children: ReactNode }) {
   };
   const selectedNavigation = location.pathname.startsWith("/runs")
     ? "/runs"
+    : location.pathname.startsWith("/prompts")
+      ? "/prompts"
+    : location.pathname.startsWith("/summaries")
+      ? "/summaries"
     : location.pathname.startsWith("/configurations") ||
         location.pathname.startsWith("/published")
-      ? "/configurations/account-operations"
+      ? designPath
       : "/";
   return (
     <div className="studio-shell">
@@ -209,7 +320,7 @@ function Shell({ children }: { children: ReactNode }) {
               aria-label="Creativity Spark"
               className="brand-lockup"
             >
-              <BrandMark />
+              <BrandLogo />
               <div className="brand-copy">
                 <p>Summary Studio</p>
                 <p>Power Platform</p>
@@ -248,17 +359,39 @@ function Shell({ children }: { children: ReactNode }) {
           <ChevronRight />
         </button>
       </aside>
-      <main id="main-content" className="min-w-0 flex-1 overflow-x-hidden">
+      <main id="main-content" className="min-w-0 flex-1">
         <header className="studio-topbar">
           <div className="studio-topbar-leading">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Microsoft 365 apps"
-              title="Microsoft 365 apps"
-            >
-              <Blocks />
-            </Button>
+            <Menu positioning="below-start">
+              <MenuTrigger disableButtonEnhancement>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="Microsoft 365 apps"
+                  title="Power Platform shortcuts"
+                >
+                  <Blocks />
+                </Button>
+              </MenuTrigger>
+              <MenuPopover>
+                <MenuList>
+                  <MenuItemLink href={makerHome} target="_blank" rel="noopener">
+                    Power Apps
+                  </MenuItemLink>
+                  <MenuItemLink href={automateHome} target="_blank" rel="noopener">
+                    Power Automate
+                  </MenuItemLink>
+                  <MenuItemLink href={tablesHome} target="_blank" rel="noopener">
+                    Dataverse tables
+                  </MenuItemLink>
+                  {solutionHome && (
+                    <MenuItemLink href={solutionHome} target="_blank" rel="noopener">
+                      Solution · {solutionLabel}
+                    </MenuItemLink>
+                  )}
+                </MenuList>
+              </MenuPopover>
+            </Menu>
             <span className="studio-topbar-divider" aria-hidden="true" />
             <Breadcrumb aria-label="Breadcrumb">
               <BreadcrumbItem>
@@ -272,7 +405,13 @@ function Shell({ children }: { children: ReactNode }) {
               <BreadcrumbDivider />
               <BreadcrumbItem>
                 <BreadcrumbButton current>
-                  {selectedNavigation === "/runs" ? "Runs" : "Configurations"}
+                  {selectedNavigation === "/runs"
+                    ? "Runs"
+                    : selectedNavigation === "/prompts"
+                      ? "Prompts"
+                      : selectedNavigation === "/summaries"
+                        ? "Summaries"
+                        : "Configurations"}
                 </BreadcrumbButton>
               </BreadcrumbItem>
             </Breadcrumb>
@@ -295,15 +434,201 @@ function Shell({ children }: { children: ReactNode }) {
               <i />
               {live ? "Dataverse" : "Local"}
             </span>
-            <Button variant="ghost" size="icon-sm" aria-label="Settings">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Settings"
+              title="Studio settings"
+              aria-expanded={settingsOpen}
+              onClick={() => setSettingsOpen(true)}
+            >
               <Settings />
             </Button>
-            <Avatar name="Oscar Fuentes" size={28} color="colorful" />
+            <Avatar
+              name={user?.name}
+              icon={<Person />}
+              size={28}
+              color={user ? "colorful" : "neutral"}
+              aria-label={user ? user.name : "Signed-in user"}
+              title={user?.email || undefined}
+            />
           </div>
         </header>
         {children}
       </main>
+      <Toaster toasterId={studioToasterId} position="bottom-end" />
+      {settingsOpen && (
+        <SettingsPane
+          runtime={data}
+          refreshing={isFetching}
+          onRefresh={() => refetch()}
+          onClose={() => setSettingsOpen(false)}
+          links={{ makerHome, automateHome, tablesHome, solutionHome, solutionLabel }}
+        />
+      )}
     </div>
+  );
+}
+
+function SettingsPane({
+  runtime,
+  refreshing,
+  onRefresh,
+  onClose,
+  links,
+}: {
+  runtime: StudioRuntime | undefined;
+  refreshing: boolean;
+  onRefresh: () => void;
+  onClose: () => void;
+  links: {
+    makerHome: string;
+    automateHome: string;
+    tablesHome: string;
+    solutionHome: string;
+    solutionLabel: string;
+  };
+}) {
+  const live = runtime?.live ?? false;
+  const tables = [
+    "csp_aisummaryconfig",
+    "csp_aiprompt",
+    "csp_aisummarycache",
+    "csp_aiusage",
+    "account",
+    "savedquery",
+    "userquery",
+  ];
+  return (
+    <>
+      <button
+        className="pane-scrim"
+        type="button"
+        aria-label="Close settings"
+        onClick={onClose}
+      />
+      <aside className="edit-pane settings-pane" aria-label="Studio settings">
+        <header>
+          <div>
+            <p className="micro-label text-brand-blue">Summary Studio</p>
+            <h2>Settings</h2>
+          </div>
+          <Button type="button" variant="ghost" size="icon" aria-label="Close pane" onClick={onClose}>
+            <Dismiss />
+          </Button>
+        </header>
+        <section>
+          <p className="field-caption">Connection</p>
+          <dl className="settings-list">
+            <div>
+              <dt>Data source</dt>
+              <dd>
+                <span className={live ? "status-pill live" : "status-pill"}>
+                  <i />
+                  {live ? "Dataverse connected" : "Local demo data"}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt>Environment</dt>
+              <dd>
+                <code>{runtime?.environmentId || "Not available outside Power Apps"}</code>
+              </dd>
+            </div>
+            <div>
+              <dt>Organization URL</dt>
+              <dd>
+                <code>{runtime?.orgUrl || "Not available outside Power Apps"}</code>
+              </dd>
+            </div>
+            <div>
+              <dt>Signed in as</dt>
+              <dd>
+                {runtime?.user ? (
+                  <>
+                    <b>{runtime.user.name}</b>
+                    {runtime.user.email && <small>{runtime.user.email}</small>}
+                  </>
+                ) : (
+                  <small>Anonymous local session</small>
+                )}
+              </dd>
+            </div>
+          </dl>
+
+          <p className="field-caption mt-5">Dataverse tables in use</p>
+          <div className="configuration-tokens settings-tokens">
+            {tables.map((table) => (
+              <code key={table}>{table}</code>
+            ))}
+          </div>
+
+          <p className="field-caption mt-5">Data</p>
+          <div className="settings-actions">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={refreshing}
+              onClick={onRefresh}
+            >
+              <RefreshCw data-icon="inline-start" />
+              {refreshing ? "Refreshing…" : "Refresh Dataverse data"}
+            </Button>
+            <small>
+              {runtime?.configurations.length ?? 0} configurations ·{" "}
+              {runtime?.prompts.length ?? 0} prompts · {runtime?.runs.length ?? 0} runs
+              loaded
+            </small>
+          </div>
+
+          <p className="field-caption mt-5">Open in Power Platform</p>
+          <div className="settings-links">
+            <a href={links.makerHome} target="_blank" rel="noopener noreferrer">
+              <Blocks /> Power Apps maker portal <ArrowRight />
+            </a>
+            <a href={links.automateHome} target="_blank" rel="noopener noreferrer">
+              <Flow /> Power Automate flows <ArrowRight />
+            </a>
+            <a href={links.tablesHome} target="_blank" rel="noopener noreferrer">
+              <Database /> Dataverse tables <ArrowRight />
+            </a>
+            {links.solutionHome && (
+              <a href={links.solutionHome} target="_blank" rel="noopener noreferrer">
+                <Blocks /> Solution {links.solutionLabel} (tables, prompts, flows) <ArrowRight />
+              </a>
+            )}
+          </div>
+
+          <p className="field-caption mt-5">About</p>
+          <p className="settings-about">
+            Summary Studio · Irish Power Platform Summit 2026 demo. Configurations
+            are stored as versioned recipes in Dataverse and materialized as
+            cloud flows by the generator backend.
+          </p>
+        </section>
+        <footer>
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        </footer>
+      </aside>
+    </>
+  );
+}
+
+function formatRelativeDate(value: string) {
+  const elapsed = Date.now() - new Date(value).getTime();
+  if (!Number.isFinite(elapsed) || elapsed < 0) return "just now";
+  const minutes = Math.round(elapsed / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 30) return `${days} d ago`;
+  return new Intl.DateTimeFormat("en-IE", { day: "2-digit", month: "short" }).format(
+    new Date(value),
   );
 }
 
@@ -342,7 +667,65 @@ function Overview() {
   const location = useLocation();
   const { data, refetch, isFetching } = useStudioRuntime();
   const runtime = data;
-  const configurations = runtime?.configurations ?? [];
+  const runtimeConfigurations = runtime?.configurations;
+  const configurations = useMemo(
+    () => runtimeConfigurations ?? [],
+    [runtimeConfigurations],
+  );
+  const flows = useCloudFlows();
+  const notify = useStudioToast();
+  const createConfiguration = useCreateStudioConfiguration();
+  const deactivateConfiguration = useDeactivateStudioConfiguration();
+  const deleteConfiguration = useDeleteStudioConfiguration();
+  const [pendingAction, setPendingAction] = useState<{
+    kind: "deactivate" | "delete";
+    item: StudioConfiguration;
+  } | null>(null);
+  const generatedFlows = useMemo(() => {
+    const seen = new Map<string, { linked: boolean }>();
+    for (const configuration of configurations) {
+      for (const flow of relatedCloudFlows(flows.data ?? [], configuration)) {
+        const current = seen.get(flow.id);
+        seen.set(flow.id, { linked: Boolean(current?.linked) || flow.linked });
+      }
+    }
+    return [...seen.values()];
+  }, [configurations, flows.data]);
+  const linkedFlows = generatedFlows.filter((flow) => flow.linked).length;
+  const earlierVersions = generatedFlows.length - linkedFlows;
+  const duplicateConfiguration = async (item: StudioConfiguration) => {
+    try {
+      const draft = draftFromConfiguration(item, runtime?.prompts ?? []);
+      const id = await createConfiguration.mutateAsync(
+        buildDraftConfigurationPayload({
+          ...draft,
+          name: `Copy of ${item.name}`,
+          flowName: "",
+        }),
+      );
+      notify("success", "Configuration duplicated", `"Copy of ${item.name}" was created as a draft.`);
+      navigate(`/configurations/${id}`);
+    } catch (error) {
+      notify("error", "Could not duplicate the configuration", errorMessage(error, ""));
+    }
+  };
+  const confirmPendingAction = async () => {
+    if (!pendingAction) return;
+    const { kind, item } = pendingAction;
+    try {
+      if (kind === "deactivate") {
+        await deactivateConfiguration.mutateAsync(item.id);
+        notify("success", "Configuration deactivated", `"${item.name}" is now inactive and hidden from the catalog.`);
+      } else {
+        await deleteConfiguration.mutateAsync(item.id);
+        notify("success", "Configuration deleted", `"${item.name}" was removed from Dataverse.`);
+      }
+    } catch (error) {
+      notify("error", kind === "deactivate" ? "Could not deactivate" : "Could not delete", errorMessage(error, ""));
+    } finally {
+      setPendingAction(null);
+    }
+  };
   const query = (new URLSearchParams(location.search).get("q") ?? "")
     .trim()
     .toLocaleLowerCase();
@@ -361,8 +744,23 @@ function Overview() {
   const published = configurations.filter(
     (item) => item.status === 100000001,
   ).length;
+  const materializedFlows = configurations.filter((item) => item.flowId).length;
+  const runsByConfiguration = new Map<string, number>();
+  const latestRunByConfiguration = new Map<string, string>();
+  for (const run of runtime?.runs ?? []) {
+    runsByConfiguration.set(
+      run.configurationId,
+      (runsByConfiguration.get(run.configurationId) ?? 0) + 1,
+    );
+    if (run.timestamp) {
+      const current = latestRunByConfiguration.get(run.configurationId);
+      if (!current || run.timestamp > current) {
+        latestRunByConfiguration.set(run.configurationId, run.timestamp);
+      }
+    }
+  }
   return (
-    <Shell>
+    <>
       <div className="studio-page catalog-page">
         <PageHeader
           eyebrow="Summary Studio"
@@ -438,14 +836,28 @@ function Overview() {
                   </TableCell>
                   <TableCell>
                     <span className="table-value">
-                      <b>{item.mode === 100000000 ? "On update" : "Scheduled"}</b>
-                      <small>{item.flowName || "Flow pending"}</small>
+                      <b>{item.mode === 100000000 ? "Per record" : "Consolidated"}</b>
+                      <small>
+                        {item.flowId
+                          ? item.flowDisplayName || item.flowName || "Flow generated"
+                          : item.flowName
+                            ? `${item.flowName} · pending`
+                            : "Flow pending"}
+                      </small>
                     </span>
                   </TableCell>
                   <TableCell>
                     <span className="table-value">
-                      <b>{runtime?.runs.length ?? 0} runs</b>
-                      <small>{item.lastRun ? "Activity recorded" : "Not run"}</small>
+                      <b>{runsByConfiguration.get(item.id) ?? 0} runs</b>
+                      <small>
+                        {(() => {
+                          const lastActivity =
+                            item.lastRun ?? latestRunByConfiguration.get(item.id);
+                          return lastActivity
+                            ? `Last run ${formatRelativeDate(lastActivity)}`
+                            : "Not run yet";
+                        })()}
+                      </small>
                     </span>
                   </TableCell>
                   <TableCell>
@@ -457,14 +869,56 @@ function Overview() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Open ${item.name}`}
-                      onClick={() => navigate(`/configurations/${item.id}`)}
-                    >
-                      <ChevronRight />
-                    </Button>
+                    <span className="row-actions">
+                      <Menu positioning="below-end">
+                        <MenuTrigger disableButtonEnhancement>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Actions for ${item.name}`}
+                          >
+                            <More />
+                          </Button>
+                        </MenuTrigger>
+                        <MenuPopover>
+                          <MenuList>
+                            <MenuItem
+                              icon={<Braces />}
+                              onClick={() => navigate(`/configurations/${item.id}`)}
+                            >
+                              Open
+                            </MenuItem>
+                            <MenuItem
+                              icon={<Copy />}
+                              disabled={createConfiguration.isPending}
+                              onClick={() => duplicateConfiguration(item)}
+                            >
+                              Duplicate
+                            </MenuItem>
+                            <MenuItem
+                              icon={<Dismiss />}
+                              onClick={() => setPendingAction({ kind: "deactivate", item })}
+                            >
+                              Deactivate
+                            </MenuItem>
+                            <MenuItem
+                              icon={<Delete />}
+                              onClick={() => setPendingAction({ kind: "delete", item })}
+                            >
+                              Delete
+                            </MenuItem>
+                          </MenuList>
+                        </MenuPopover>
+                      </Menu>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Open ${item.name}`}
+                        onClick={() => navigate(`/configurations/${item.id}`)}
+                      >
+                        <ChevronRight />
+                      </Button>
+                    </span>
                   </TableCell>
                 </TableRow>
               ))}
@@ -491,10 +945,67 @@ function Overview() {
             <b>Power Platform pipeline</b>
             <p>Dataverse configuration → AI Prompt → generated cloud flow</p>
           </div>
-          <span>Foundry evaluations ready</span>
+          <span>
+            {configurations.length === 0
+              ? "No recipes yet"
+              : flows.isLoading
+                ? "Checking generated flows…"
+                : generatedFlows.length === 0
+                  ? materializedFlows === 0
+                    ? "Flow generation pending in the backend"
+                    : `${materializedFlows} of ${configurations.length} flows linked`
+                  : `${generatedFlows.length} flow${generatedFlows.length === 1 ? "" : "s"} generated · ${linkedFlows} linked${
+                      earlierVersions > 0
+                        ? ` · ${earlierVersions} earlier version${earlierVersions === 1 ? "" : "s"} still active`
+                        : ""
+                    }`}
+          </span>
         </section>
       </div>
-    </Shell>
+      <Dialog
+        open={Boolean(pendingAction)}
+        onOpenChange={(_, dialogData) => {
+          if (!dialogData.open) setPendingAction(null);
+        }}
+      >
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>
+              {pendingAction?.kind === "delete"
+                ? "Delete configuration?"
+                : "Deactivate configuration?"}
+            </DialogTitle>
+            <DialogContent>
+              {pendingAction?.kind === "delete" ? (
+                <>
+                  <b>{pendingAction.item.name}</b> will be removed from Dataverse.
+                  Generated flows and recorded runs are not deleted; retire the flow
+                  in Power Automate if it should stop running.
+                </>
+              ) : (
+                <>
+                  <b>{pendingAction?.item.name}</b> will be set inactive and disappear
+                  from the catalog. The generated flow keeps running until it is
+                  turned off in Power Automate.
+                </>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button variant="outline" onClick={() => setPendingAction(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant={pendingAction?.kind === "delete" ? "destructive" : "default"}
+                disabled={deactivateConfiguration.isPending || deleteConfiguration.isPending}
+                onClick={confirmPendingAction}
+              >
+                {pendingAction?.kind === "delete" ? "Delete" : "Deactivate"}
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+    </>
   );
 }
 
@@ -1187,11 +1698,30 @@ function PromptStep({
 }: {
   onEdit: (pane: PaneKind) => void;
   draft: BuilderDraft;
-  onSavePrompt: (content: string) => void;
+  onSavePrompt: (content: string) => Promise<void>;
   savingPrompt: boolean;
 }) {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [promptContent, setPromptContent] = useState(draft.promptContent);
+  const [saveState, setSaveState] = useState<"idle" | "saved" | "error">("idle");
+  const [saveError, setSaveError] = useState("");
+  const savePrompt = async () => {
+    try {
+      await onSavePrompt(promptContent);
+      setSaveState("saved");
+      setSaveError("");
+      window.setTimeout(() => setSaveState("idle"), 3000);
+    } catch (error) {
+      setSaveState("error");
+      setSaveError(error instanceof Error ? error.message : "The prompt could not be saved.");
+    }
+  };
+  const dirty = promptContent !== draft.promptContent;
+  const estimatedTokens = estimateRecipeTokens({
+    promptContent,
+    sourceFields: draft.sourceFields,
+    relationships: draft.relationships,
+  });
 
   return (
     <div className="editor-section">
@@ -1228,7 +1758,7 @@ function PromptStep({
               <b>
                 {draft.model.replace("gpt-", "GPT-").replace("-mini", " mini")}
               </b>
-              <code>EU Data Zone</code>
+              <code>AI Builder model</code>
             </span>
           </button>
         </LabeledField>
@@ -1273,24 +1803,43 @@ function PromptStep({
             <code>{"{{account_context}}"}</code>
             <code>{"{{generated_at}}"}</code>
             <span className="prompt-cost">
-              <span>Estimate · 1,240 tokens per run</span>
-              <b>≈ €0.0009</b>
+              <span>
+                Estimate · ~{estimatedTokens.toLocaleString("en-US")} tokens per
+                run
+              </span>
             </span>
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              disabled={
-                savingPrompt ||
-                !draft.promptId ||
-                promptContent === draft.promptContent
-              }
-              onClick={() => onSavePrompt(promptContent)}
+              variant={dirty ? "default" : "outline"}
+              disabled={savingPrompt || !draft.promptId || !dirty}
+              onClick={savePrompt}
             >
-              {savingPrompt ? "Saving prompt…" : "Save prompt"}
+              {savingPrompt
+                ? "Saving prompt…"
+                : saveState === "saved" && !dirty
+                  ? "Saved"
+                  : "Save prompt"}
             </Button>
           </div>
         </div>
+        <p className="prompt-save-hint" aria-live="polite">
+          {saveState === "error" ? (
+            <span className="prompt-save-error">{saveError}</span>
+          ) : dirty ? (
+            <>
+              Unsaved changes. <b>Save prompt</b> updates the shared AI Prompt{" "}
+              <code>{draft.promptKey || draft.promptName}</code> in Dataverse, so
+              every configuration bound to it uses the new instructions.
+            </>
+          ) : (
+            <>
+              These instructions are stored on the AI Prompt record{" "}
+              <code>{draft.promptKey || draft.promptName}</code>. Edit them here or{" "}
+              <Link to="/prompts">manage all prompts</Link>.
+            </>
+          )}
+        </p>
       </div>
       {assistantOpen && (
         <PromptAssistantPane
@@ -1612,6 +2161,11 @@ function ReviewStep({
   validationErrors: string[];
 }) {
   const trigger = triggerPresentation(draft.triggerType, draft.triggerColumns);
+  const relatedEntities = draft.relationships
+    .map((relationship) => String(relationship.entity ?? ""))
+    .filter(Boolean);
+  const relationshipCount = draft.relationships.length;
+  const inputCount = Object.keys(draft.inputMappings).length;
   return (
     <div className="editor-section">
       <SectionIntro
@@ -1623,20 +2177,24 @@ function ReviewStep({
         <ReviewCard
           icon={<Database />}
           title="Data"
-          value="Account + activities"
-          detail={`${draft.sourceFields.length} fields · 1 relationship`}
+          value={
+            relatedEntities.length
+              ? `${draft.entity} + ${relatedEntities.join(", ")}`
+              : draft.entity
+          }
+          detail={`${draft.sourceFields.length} field${draft.sourceFields.length === 1 ? "" : "s"} · ${relationshipCount} relationship${relationshipCount === 1 ? "" : "s"}`}
         />
         <ReviewCard
           icon={<Bot />}
           title="Generation"
           value={draft.promptName}
-          detail={`${draft.model} · 2 inputs · English`}
+          detail={`${draft.model} · ${inputCount} input${inputCount === 1 ? "" : "s"}`}
         />
         <ReviewCard
           icon={<Target />}
           title="Destination"
           value={`${draft.outputEntity}.${draft.outputField}`}
-          detail="Overwrite · metadata enabled"
+          detail={`${draft.preserveHistory ? "Preserve history" : "Overwrite"} · metadata ${draft.saveMetadata ? "enabled" : "disabled"}`}
         />
         <ReviewCard
           icon={<Flow />}
@@ -1736,6 +2294,123 @@ function SectionIntro({
   );
 }
 
+function isGuidLike(value: unknown) {
+  return (
+    typeof value === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+  );
+}
+
+function formatPreviewValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") return value.toLocaleString("en-IE");
+  if (typeof value === "string") {
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) {
+      const date = new Date(value);
+      if (!Number.isNaN(date.getTime())) {
+        return new Intl.DateTimeFormat("en-IE", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }).format(date);
+      }
+    }
+    return value.length > 80 ? `${value.slice(0, 77)}…` : value;
+  }
+  return JSON.stringify(value);
+}
+
+function RecordPreviewTable({
+  records,
+  columns,
+  entity,
+  maxColumns = 6,
+}: {
+  records: Array<Record<string, unknown>>;
+  columns: DataverseColumnMetadata[];
+  entity: string;
+  maxColumns?: number;
+}) {
+  const keys: string[] = [];
+  for (const record of records) {
+    for (const key of Object.keys(record)) {
+      if (key.startsWith("@") || key.includes("@")) continue;
+      if (!keys.includes(key)) keys.push(key);
+    }
+  }
+  const logicalNameFor = (key: string) =>
+    key.startsWith("_") && key.endsWith("_value") ? key.slice(1, -6) : key;
+  const labelFor = (key: string) => {
+    const logicalName = logicalNameFor(key);
+    return (
+      columns.find((column) => column.logicalName === logicalName)?.displayName ??
+      logicalName
+    );
+  };
+  const primaryId = `${entity}id`;
+  const score = (key: string) => {
+    if (key === primaryId) return 3;
+    if (key.startsWith("_") && key.endsWith("_value")) return 2;
+    if (records.every((record) => isGuidLike(record[key]))) return 2;
+    if (["name", "fullname", "title", "subject"].includes(key)) return 0;
+    return 1;
+  };
+  const ranked = [...keys].sort(
+    (a, b) => score(a) - score(b) || keys.indexOf(a) - keys.indexOf(b),
+  );
+  const visible = ranked.slice(0, maxColumns);
+  const hiddenCount = keys.length - visible.length;
+  const rowKey = (record: Record<string, unknown>, index: number) =>
+    String(record[primaryId] ?? record.id ?? index);
+  const cellValue = (record: Record<string, unknown>, key: string) => {
+    const formatted = record[`${key}@OData.Community.Display.V1.FormattedValue`];
+    return formatPreviewValue(formatted ?? record[key]);
+  };
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    surfaceRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [records]);
+  return (
+    <div className="preview-table-surface" ref={surfaceRef}>
+      <div className="preview-table-heading">
+        <b>
+          {records.length} matching record{records.length === 1 ? "" : "s"} loaded
+        </b>
+        {hiddenCount > 0 && (
+          <small>
+            Showing {visible.length} of {keys.length} columns
+          </small>
+        )}
+      </div>
+      <Table aria-label="Record preview" className="preview-table" size="small">
+        <TableHeader>
+          <TableRow>
+            {visible.map((key) => (
+              <TableHeaderCell key={key} title={key}>
+                {labelFor(key)}
+              </TableHeaderCell>
+            ))}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {records.map((record, index) => (
+            <TableRow key={rowKey(record, index)}>
+              {visible.map((key) => (
+                <TableCell key={key} title={String(record[key] ?? "")}>
+                  <span className={isGuidLike(record[key]) ? "preview-guid" : undefined}>
+                    {cellValue(record, key)}
+                  </span>
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 function CompiledRecipe({
   step,
   draft,
@@ -1752,6 +2427,18 @@ function CompiledRecipe({
     "flow prepared",
     "ready to publish",
   ][step];
+  const [showJson, setShowJson] = useState(false);
+  const recipe = compileRecipe(draft);
+  const estimatedTokens = estimateRecipeTokens({
+    promptContent: draft.promptContent,
+    sourceFields: draft.sourceFields,
+    relationships: draft.relationships,
+  });
+  const assets = [
+    "csp_aisummaryconfig record",
+    draft.promptId ? "AI Prompt binding" : null,
+    "Flow definition",
+  ].filter(Boolean);
   return (
     <aside className="compiled-panel">
       <div className="compiled-head">
@@ -1810,7 +2497,7 @@ function CompiledRecipe({
       <div className="compile-summary">
         <p>
           <span>Estimated context</span>
-          <b>1,240 tokens</b>
+          <b>~{estimatedTokens.toLocaleString("en-US")} tokens</b>
         </p>
         <p>
           <span>Flow pattern</span>
@@ -1823,7 +2510,9 @@ function CompiledRecipe({
         </p>
         <p>
           <span>Components</span>
-          <b>3 assets</b>
+          <b>
+            {assets.length} asset{assets.length === 1 ? "" : "s"}
+          </b>
         </p>
       </div>
       <div className="compiled-footer">
@@ -1832,8 +2521,19 @@ function CompiledRecipe({
           <b>Valid JSON</b>
           <small>summary-recipe.schema.json</small>
         </span>
-        <button type="button">View JSON</button>
+        <button
+          type="button"
+          aria-expanded={showJson}
+          onClick={() => setShowJson((value) => !value)}
+        >
+          {showJson ? "Hide JSON" : "View JSON"}
+        </button>
       </div>
+      {showJson && (
+        <pre className="recipe-json" aria-label="Compiled recipe JSON">
+          {JSON.stringify(recipe, null, 2)}
+        </pre>
+      )}
     </aside>
   );
 }
@@ -1885,7 +2585,7 @@ const paneContent: Record<
     title: "Model",
     eyebrow: "Generation",
     value: "GPT-4.1 mini",
-    technical: "EU Data Zone",
+    technical: "AI Builder model",
     options: ["GPT-4.1 mini", "GPT-4.1", "GPT-4o mini"],
   },
   fields: {
@@ -2335,7 +3035,7 @@ function QueryDesignerPane({
   const chooseView = (id: string) => {
     setViewId(id);
     const selected = availableViews.find((view) => view.id === id);
-    if (selected?.fetchXml) setQuery(selected.fetchXml);
+    if (selected?.fetchXml) setQuery(formatFetchXml(selected.fetchXml));
   };
   const defaultRelatedFields = (relatedColumns.data ?? [])
     .filter((column) => column.readable && !column.logicalName.endsWith("id"))
@@ -2502,7 +3202,10 @@ function QueryDesignerPane({
             type="button"
             role="tab"
             aria-selected={mode === "fetchxml"}
-            onClick={() => setMode("fetchxml")}
+            onClick={() => {
+              setMode("fetchxml");
+              setQuery((current) => formatFetchXml(current));
+            }}
           >
             <Code />
             Edit FetchXML
@@ -2621,21 +3324,11 @@ function QueryDesignerPane({
             <code>{query.length.toLocaleString("en-US")} characters</code>
           </div>
           {preview.data && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-              <b className="text-sm text-emerald-950">
-                {preview.data.length} matching records loaded
-              </b>
-              <div className="mt-2 grid gap-2">
-                {preview.data.slice(0, 5).map((record, index) => (
-                  <code
-                    key={index}
-                    className="block truncate rounded-md bg-white px-2 py-1.5 text-xs"
-                  >
-                    {JSON.stringify(record)}
-                  </code>
-                ))}
-              </div>
-            </div>
+            <RecordPreviewTable
+              records={preview.data}
+              columns={relatedColumns.data ?? []}
+              entity={effectiveEntity}
+            />
           )}
           {preview.isError && (
             <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -2910,7 +3603,10 @@ function TestRecordPane({
           )}
           {(records.isError || context.isError) && (
             <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-              Dataverse could not execute the current recipe.
+              {[records.error, context.error]
+                .map((error) => (error instanceof Error ? error.message : ""))
+                .filter(Boolean)
+                .join(" ") || "Dataverse could not execute the current recipe."}
             </p>
           )}
         </section>
@@ -3010,9 +3706,18 @@ function Builder() {
       ? data?.configurations[0]
       : data?.configurations.find((item) => item.id === configurationId);
   const prompts = useMemo(() => data?.prompts ?? [], [data?.prompts]);
+  const location = useLocation();
+  const navigationState = (location.state ?? {}) as {
+    openRecipe?: boolean;
+    openTest?: boolean;
+  };
   const [step, setStep] = useState(0);
-  const [recipeOpen, setRecipeOpen] = useState(false);
-  const [testRecordOpen, setTestRecordOpen] = useState(false);
+  const [recipeOpen, setRecipeOpen] = useState(
+    Boolean(navigationState.openRecipe),
+  );
+  const [testRecordOpen, setTestRecordOpen] = useState(
+    Boolean(navigationState.openTest),
+  );
   const [pane, setPane] = useState<PaneKind | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [draft, setDraft] = useState<BuilderDraft>(() =>
@@ -3028,26 +3733,33 @@ function Builder() {
         current.promptId ? current : draftFromConfiguration(undefined, prompts),
       );
   }, [configuration, isNew, prompts]);
+  const notify = useStudioToast();
   const save = async (next: BuilderDraft, changes: Record<string, unknown>) => {
     setDraft(next);
     setPane(null);
     setValidationErrors([]);
-    if (configuration) {
-      await updateConfiguration.mutateAsync({
-        id: configuration.id,
-        changes: {
-          ...changes,
-          csp_configurationjson: JSON.stringify(compileRecipe(next)),
-        },
-      });
-      return configuration.id;
-    }
-    if (isNew) {
-      const id = await createConfiguration.mutateAsync(
-        buildDraftConfigurationPayload(next),
-      );
-      navigate(`/configurations/${id}`, { replace: true });
-      return id;
+    try {
+      if (configuration) {
+        await updateConfiguration.mutateAsync({
+          id: configuration.id,
+          changes: {
+            ...changes,
+            csp_configurationjson: JSON.stringify(compileRecipe(next)),
+          },
+        });
+        notify("success", "Configuration saved", `Changes stored on "${configuration.name}".`);
+        return configuration.id;
+      }
+      if (isNew) {
+        const id = await createConfiguration.mutateAsync(
+          buildDraftConfigurationPayload(next),
+        );
+        notify("success", "Draft created", "The configuration was created in Dataverse.");
+        navigate(`/configurations/${id}`, { replace: true });
+        return id;
+      }
+    } catch (error) {
+      notify("error", "Could not save the configuration", errorMessage(error, ""));
     }
     return undefined;
   };
@@ -3146,31 +3858,38 @@ function Builder() {
     if (!draft.promptId) return;
     await updatePrompt.mutateAsync({ id: draft.promptId, content });
     setDraft((current) => ({ ...current, promptContent: content }));
+    notify("success", "Prompt saved", `"${draft.promptName}" was updated in Dataverse.`);
   };
   const publish = async () => {
     const errors = validateSummaryConfiguration(draft);
     setValidationErrors(errors);
     if (errors.length) {
       setStep(4);
+      notify("warning", "Resolve validation items before publishing", errors[0]);
       return;
     }
-    let id = configuration?.id;
-    if (configuration) {
+    try {
+      let id = configuration?.id;
+      if (configuration) {
+        await updateConfiguration.mutateAsync({
+          id: configuration.id,
+          changes: buildConfigurationPayload(draft),
+        });
+      } else if (isNew) {
+        id = await createConfiguration.mutateAsync(
+          buildConfigurationPayload(draft),
+        );
+      }
+      if (!id) return;
       await updateConfiguration.mutateAsync({
-        id: configuration.id,
-        changes: buildConfigurationPayload(draft),
+        id,
+        changes: buildPublishSignal(),
       });
-    } else if (isNew) {
-      id = await createConfiguration.mutateAsync(
-        buildConfigurationPayload(draft),
-      );
+      notify("success", "Configuration published", "The recipe is ready for the generator backend.");
+      navigate(`/published/${id}`);
+    } catch (error) {
+      notify("error", "Could not publish the configuration", errorMessage(error, ""));
     }
-    if (!id) return;
-    await updateConfiguration.mutateAsync({
-      id,
-      changes: buildPublishSignal(),
-    });
-    navigate(`/published/${id}`);
   };
   const content = [
     <DataStep onEdit={setPane} draft={draft} accounts={data?.accounts ?? []} />,
@@ -3186,10 +3905,14 @@ function Builder() {
     <ReviewStep draft={draft} validationErrors={validationErrors} />,
   ][step];
   return (
-    <Shell>
+    <>
       <div className="studio-page builder-page">
         <PageHeader
-          eyebrow={`Configuration · ${configuration?.version ?? "draft"}`}
+          eyebrow={
+            configuration
+              ? `Editing configuration · v${configuration.version}`
+              : "New configuration · not saved yet"
+          }
           title={draft.name}
           description=""
           actions={
@@ -3530,14 +4253,48 @@ function Builder() {
           />
         )}
       </div>
-    </Shell>
+    </>
   );
 }
 
 function Published() {
   const navigate = useNavigate();
+  const { configurationId } = useParams();
+  const { data } = useStudioRuntime();
+  const configuration = data?.configurations.find(
+    (item) => item.id === configurationId,
+  );
+  const builderPath = `/configurations/${configurationId ?? "new"}`;
+  const flowCreated = Boolean(configuration?.flowId);
+  const flowLabel =
+    configuration?.flowDisplayName ||
+    configuration?.flowName ||
+    "Named by the generator flow after publishing";
+  const flowUrl =
+    flowCreated && data?.environmentId
+      ? `https://make.powerautomate.com/environments/${data.environmentId}/flows/${configuration?.flowId}/details`
+      : "";
+  const promptLabel = configuration?.promptKey || configuration?.promptName || "Not selected";
+  const modelLabel = configuration?.model || "AI Builder model";
+  const flows = useCloudFlows();
+  const notify = useStudioToast();
+  const generatedFlows = configuration
+    ? relatedCloudFlows(flows.data ?? [], configuration)
+    : [];
+  const activeEarlierVersions = generatedFlows.filter(
+    (flow) => !flow.linked && flow.state === "Activated",
+  ).length;
+  const runNow = () => {
+    if (!flowUrl) return;
+    window.open(flowUrl, "_blank", "noopener");
+    notify(
+      "info",
+      "Trigger the flow from Power Automate",
+      "Use Run or edit the trigger there. New executions appear under Runs after a refresh.",
+    );
+  };
   return (
-    <Shell>
+    <>
       <div className="studio-page publish-page">
         <div className="success-hero">
           <div className="success-mark">
@@ -3548,19 +4305,31 @@ function Published() {
           </p>
           <h1>Recipe prepared</h1>
           <p>
-            The configuration is ready for the backend to generate or update the
-            specialized Power Automate flow.
+            {flowCreated
+              ? "The backend has generated the specialized Power Automate flow for this recipe."
+              : "The configuration is stored and waiting for the backend to generate or update the specialized Power Automate flow."}
           </p>
           <div className="mt-6 flex justify-center gap-3">
-            <Button>
+            <Button
+              onClick={() => navigate(builderPath, { state: { openTest: true } })}
+            >
               <Play data-icon="inline-start" />
               Test configuration
             </Button>
             <Button
               variant="outline"
+              onClick={() =>
+                navigate(builderPath, { state: { openRecipe: true } })
+              }
             >
               View JSON contract <ArrowRight data-icon="inline-end" />
             </Button>
+            {flowUrl && (
+              <Button variant="outline" onClick={runNow}>
+                <Play data-icon="inline-start" />
+                Run now
+              </Button>
+            )}
           </div>
           <div className="deployment-checks">
             <span>
@@ -3594,35 +4363,130 @@ function Published() {
             <PublishedAsset
               icon={<Database />}
               title="Configuration stored"
-              technical="csp_aisummaryconfig · v3.0"
+              technical={`csp_aisummaryconfig · v${configuration?.version ?? "3.0"}`}
               detail="Versioned recipe available for audit."
               time="Ready"
             />
             <PublishedAsset
               icon={<Flow />}
               title="Flow definition prepared"
-              technical="csp_SUM_AccountOperations_v3"
-              detail="Trigger, query, prompt, and write contract for the backend."
-              time="Pending"
+              technical={flowLabel}
+              detail={
+                flowCreated
+                  ? "Cloud flow created and linked to this configuration."
+                  : "Trigger, query, prompt, and write contract for the backend."
+              }
+              time={flowCreated ? "Created" : "Pending backend"}
               featured
             />
             <PublishedAsset
               icon={<Bot />}
               title="AI Prompt bound"
-              technical="account-operations"
-              detail="Inputs mapped and GPT-4.1 mini validated."
-              time="Ready"
+              technical={promptLabel}
+              detail={`Inputs mapped · ${modelLabel}`}
+              time={configuration?.promptId ? "Ready" : "Missing"}
             />
           </div>
         </section>
+        <section className="publication-assets generated-flows" aria-label="Generated flows">
+          <div className="publication-title">
+            <div>
+              <p className="micro-label text-muted-foreground">Power Automate</p>
+              <h2>Generated flows</h2>
+            </div>
+            <span>
+              <i />
+              {flows.isLoading
+                ? "Checking…"
+                : `${generatedFlows.length} found`}
+            </span>
+          </div>
+          {flows.isLoading ? (
+            <p className="flows-empty">Checking the cloud flows in this environment…</p>
+          ) : flows.isError ? (
+            <p className="flows-empty">
+              {errorMessage(flows.error, "Could not read the cloud flows.")}
+            </p>
+          ) : generatedFlows.length === 0 ? (
+            <p className="flows-empty">
+              No cloud flow has been generated for this recipe yet.
+            </p>
+          ) : (
+            <ul className="flow-list">
+              {generatedFlows.map((flow) => {
+                const url = cloudFlowUrl(data?.environmentId ?? "", flow.id);
+                return (
+                  <li key={flow.id} className={flow.linked ? "linked" : ""}>
+                    <span className="asset-symbol">
+                      <Flow />
+                    </span>
+                    <div>
+                      <b>{flow.name}</b>
+                      <small>
+                        {flow.state}
+                        {flow.modifiedOn ? ` · updated ${formatRelativeDate(flow.modifiedOn)}` : ""}
+                        {" · "}
+                        <code>{flow.id}</code>
+                      </small>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={flow.linked ? "status-live" : "status-draft"}
+                    >
+                      {flow.linked ? "Linked" : "Earlier version"}
+                    </Badge>
+                    {url && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(url, "_blank", "noopener")}
+                      >
+                        Open <OpenIcon data-icon="inline-end" />
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          {activeEarlierVersions > 0 && (
+            <p className="flows-warning">
+              <Warning />
+              <span>
+                {activeEarlierVersions} earlier version
+                {activeEarlierVersions === 1 ? " is" : "s are"} still active and may run in
+                parallel with the linked flow. Turn them off in Power Automate or ask the
+                backend to retire superseded flows when it regenerates.
+              </span>
+            </p>
+          )}
+        </section>
         <section className="execution-ready">
           <div>
-            <p className="micro-label text-brand-blue">Next step · backend</p>
-            <h2>Contract ready to materialize</h2>
+            <p className="micro-label text-brand-blue">
+              {flowCreated ? "Generated automation" : "Next step · backend"}
+            </p>
+            <h2>
+              {flowCreated ? "Cloud flow is live" : "Contract ready to materialize"}
+            </h2>
             <p>
-              The backend reads the recipe, composes the context, and updates{" "}
-              <code>account.csp_aisummary</code>; the Code App already uses the
-              same Dataverse model.
+              {flowCreated ? (
+                <>
+                  The generated flow <code>{flowLabel}</code> reads this recipe,
+                  composes the context, runs the AI Prompt, and updates{" "}
+                  <code>
+                    {configuration?.outputEntity ?? "account"}.
+                    {configuration?.outputField ?? "csp_aisummary"}
+                  </code>
+                  .
+                </>
+              ) : (
+                <>
+                  The backend reads the recipe, composes the context, and updates{" "}
+                  <code>account.csp_aisummary</code>; the Code App already uses
+                  the same Dataverse model.
+                </>
+              )}
             </p>
           </div>
           <div className="ready-flow">
@@ -3651,7 +4515,7 @@ function Published() {
           </Button>
         </section>
       </div>
-    </Shell>
+    </>
   );
 }
 
@@ -3686,14 +4550,421 @@ function PublishedAsset({
   );
 }
 
+type PromptDraft = StudioPromptInput;
+
+const promptModelOptions = ["gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini", "gpt-4o"];
+
+const newPromptTemplate = `You are preparing a concise account summary for account managers.
+
+Objective
+Summarize the current situation of the account and highlight what needs attention before the next customer conversation.
+
+Source context
+Use {{account_context}} as the only source of truth. Never invent data; if something is missing, say so explicitly.
+
+Output
+- Situation: two or three sentences.
+- Risks and opportunities: short bullet list grounded in the context.
+- Recommended next actions: up to three bullets.
+
+Write in English with a direct, professional tone.`;
+
+function promptDraftFrom(prompt?: StudioPrompt | null): PromptDraft {
+  return {
+    name: prompt?.name ?? "",
+    key: prompt?.key ?? "",
+    model: prompt?.model || "gpt-4.1-mini",
+    version: prompt?.version || "1.0",
+    content: prompt ? prompt.content : newPromptTemplate,
+  };
+}
+
+function slugifyPromptKey(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
+
+function PromptEditorPane({
+  prompt,
+  usedBy,
+  saving,
+  error,
+  onClose,
+  onSave,
+}: {
+  prompt: StudioPrompt | null;
+  usedBy: StudioConfiguration[];
+  saving: boolean;
+  error: string;
+  onClose: () => void;
+  onSave: (draft: PromptDraft) => void;
+}) {
+  const [draft, setDraft] = useState<PromptDraft>(() => promptDraftFrom(prompt));
+  const [keyTouched, setKeyTouched] = useState(Boolean(prompt));
+  const update = <K extends keyof PromptDraft>(key: K, value: PromptDraft[K]) =>
+    setDraft((current) => ({ ...current, [key]: value }));
+  const setName = (value: string) =>
+    setDraft((current) => ({
+      ...current,
+      name: value,
+      key: keyTouched ? current.key : slugifyPromptKey(value),
+    }));
+  const valid =
+    draft.name.trim().length > 0 &&
+    draft.key.trim().length > 0 &&
+    draft.content.trim().length > 0;
+  const estimatedTokens = estimateRecipeTokens({
+    promptContent: draft.content,
+    sourceFields: [],
+    relationships: [],
+  });
+  return (
+    <>
+      <button
+        className="pane-scrim"
+        type="button"
+        aria-label="Close edit pane"
+        onClick={onClose}
+      />
+      <aside
+        className="edit-pane prompt-editor-pane"
+        aria-label={prompt ? "Edit AI Prompt" : "New AI Prompt"}
+      >
+        <header>
+          <div>
+            <p className="micro-label text-brand-blue">AI Prompt library</p>
+            <h2>{prompt ? "Edit prompt" : "New prompt"}</h2>
+          </div>
+          <Button type="button" variant="ghost" size="icon" aria-label="Close pane" onClick={onClose}>
+            <Dismiss />
+          </Button>
+        </header>
+        {prompt && (
+          <div className="pane-current">
+            <span>
+              <Bot />
+            </span>
+            <div>
+              <small>Stored in csp_aiprompt</small>
+              <b>{prompt.name}</b>
+              <code>{prompt.id}</code>
+            </div>
+          </div>
+        )}
+        <section>
+          <label className="studio-field">
+            <span>Name</span>
+            <Input
+              appearance="outline"
+              aria-label="Prompt name"
+              value={draft.name}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Account executive summary"
+            />
+            {!prompt && (
+              <small>Example: "Account executive summary" or "Case escalation brief".</small>
+            )}
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="studio-field">
+              <span>Key</span>
+              <Input
+                appearance="outline"
+                aria-label="Prompt key"
+                value={draft.key}
+                onChange={(event) => {
+                  setKeyTouched(true);
+                  update("key", event.target.value);
+                }}
+                placeholder="account-operations"
+              />
+              <small>Stable identifier used by generated flows.</small>
+            </label>
+            <label className="studio-field">
+              <span>Version</span>
+              <Input
+                appearance="outline"
+                aria-label="Prompt version"
+                value={draft.version}
+                onChange={(event) => update("version", event.target.value)}
+              />
+            </label>
+          </div>
+          <label className="studio-field">
+            <span>Model</span>
+            <Select
+              aria-label="Prompt model"
+              value={
+                promptModelOptions.includes(draft.model) ? draft.model : "custom"
+              }
+              onChange={(event) => {
+                if (event.target.value !== "custom") update("model", event.target.value);
+              }}
+            >
+              {promptModelOptions.map((model) => (
+                <option key={model} value={model}>
+                  {model}
+                </option>
+              ))}
+              {!promptModelOptions.includes(draft.model) && (
+                <option value="custom">{draft.model}</option>
+              )}
+            </Select>
+          </label>
+          <label className="studio-field">
+            <span>Instructions</span>
+            <Textarea
+              resize="vertical"
+              className="prompt-library-content"
+              aria-label="Prompt instructions content"
+              value={draft.content}
+              onChange={(event) => update("content", event.target.value)}
+            />
+            <small>
+              Use <code>{"{{account_context}}"}</code> for the compiled Dataverse
+              context · ~{estimatedTokens.toLocaleString("en-US")} tokens
+            </small>
+          </label>
+          {prompt && (
+            <div className="prompt-usage">
+              <p className="field-caption">Used by</p>
+              {usedBy.length === 0 ? (
+                <small>No configuration is bound to this prompt yet.</small>
+              ) : (
+                <ul>
+                  {usedBy.map((configuration) => (
+                    <li key={configuration.id}>
+                      <Link to={`/configurations/${configuration.id}`}>
+                        {configuration.name}
+                      </Link>
+                      <small>
+                        {configuration.status === 100000001 ? "Published" : "Draft"}
+                      </small>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          {error && (
+            <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {error}
+            </p>
+          )}
+        </section>
+        <footer>
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button disabled={!valid || saving} onClick={() => onSave(draft)}>
+            {saving ? "Saving…" : prompt ? "Save changes" : "Create prompt"}
+          </Button>
+        </footer>
+      </aside>
+    </>
+  );
+}
+
+function Prompts() {
+  const { data, refetch, isFetching } = useStudioRuntime();
+  const prompts = data?.prompts ?? [];
+  const configurations = data?.configurations ?? [];
+  const [editing, setEditing] = useState<StudioPrompt | "new" | null>(null);
+  const [error, setError] = useState("");
+  const savePrompt = useSaveStudioPrompt();
+  const createPrompt = useCreateStudioPrompt();
+  const usedBy = (promptId: string) =>
+    configurations.filter(
+      (configuration) =>
+        configuration.promptId.toLowerCase() === promptId.toLowerCase(),
+    );
+  const notify = useStudioToast();
+  const handleSave = async (draft: PromptDraft) => {
+    setError("");
+    try {
+      if (editing === "new") {
+        await createPrompt.mutateAsync(draft);
+        notify("success", "Prompt created", `"${draft.name}" is available to every configuration.`);
+      } else if (editing) {
+        await savePrompt.mutateAsync({ id: editing.id, changes: draft });
+        notify("success", "Prompt saved", `"${draft.name}" was updated in Dataverse.`);
+      }
+      setEditing(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The prompt could not be saved.");
+    }
+  };
+  return (
+    <>
+      <div className="studio-page catalog-page">
+        <PageHeader
+          eyebrow="Summary Studio"
+          title="AI Prompts"
+          description="Reusable prompt instructions stored in Dataverse. Editing a prompt updates every configuration bound to it."
+        />
+        <Toolbar aria-label="Prompt commands" className="catalog-command-bar">
+          <ToolbarButton
+            className="primary-command"
+            appearance="primary"
+            icon={<Sparkles />}
+            onClick={() => {
+              setError("");
+              setEditing("new");
+            }}
+          >
+            New prompt
+          </ToolbarButton>
+          <ToolbarButton
+            appearance="subtle"
+            icon={<RefreshCw />}
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            {isFetching ? "Refreshing" : "Refresh"}
+          </ToolbarButton>
+          <ToolbarDivider />
+          <span className="catalog-command-hint">
+            Stored in <code>csp_aiprompt</code>
+          </span>
+        </Toolbar>
+        <section className="catalog-grid" aria-labelledby="prompt-grid-title">
+          <div className="catalog-grid-heading">
+            <div>
+              <h2 id="prompt-grid-title">Prompt library</h2>
+              <p>Select a prompt to review or edit its instructions.</p>
+            </div>
+            <Badge variant="outline">{prompts.length} items</Badge>
+          </div>
+          <Table aria-label="AI Prompts" className="config-table" size="medium">
+            <TableHeader>
+              <TableRow>
+                <TableHeaderCell>Prompt</TableHeaderCell>
+                <TableHeaderCell>Model</TableHeaderCell>
+                <TableHeaderCell>Instructions</TableHeaderCell>
+                <TableHeaderCell>Used by</TableHeaderCell>
+                <TableHeaderCell aria-label="Open" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {prompts.map((prompt) => {
+                const bound = usedBy(prompt.id);
+                return (
+                  <TableRow key={prompt.id}>
+                    <TableCell>
+                      <TableCellLayout media={<span className="entity-icon"><Bot /></span>}>
+                        <button
+                          type="button"
+                          className="configuration-link text-left"
+                          onClick={() => {
+                            setError("");
+                            setEditing(prompt);
+                          }}
+                        >
+                          <b>{prompt.name}</b>
+                          <small>{prompt.key || "no key"} · v{prompt.version || "1.0"}</small>
+                        </button>
+                      </TableCellLayout>
+                    </TableCell>
+                    <TableCell>
+                      <span className="table-value">
+                        <b>{prompt.model || "Not set"}</b>
+                        <small>AI Builder model</small>
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="table-value">
+                        <b className="prompt-preview">{prompt.content || "No instructions yet"}</b>
+                        <small>
+                          {prompt.content.length.toLocaleString("en-US")} characters
+                        </small>
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="table-value">
+                        <b>
+                          {bound.length} configuration{bound.length === 1 ? "" : "s"}
+                        </b>
+                        <small>{bound.map((item) => item.name).join(", ") || "Unused"}</small>
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Open ${prompt.name}`}
+                        onClick={() => {
+                          setError("");
+                          setEditing(prompt);
+                        }}
+                      >
+                        <ChevronRight />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {prompts.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5}>
+                    <div className="catalog-empty-state">
+                      <Bot />
+                      <span>
+                        <b>No AI Prompts yet.</b>
+                        <small>Create one to reuse it across configurations.</small>
+                      </span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </section>
+      </div>
+      {editing && (
+        <PromptEditorPane
+          key={editing === "new" ? "new" : editing.id}
+          prompt={editing === "new" ? null : editing}
+          usedBy={editing === "new" ? [] : usedBy(editing.id)}
+          saving={savePrompt.isPending || createPrompt.isPending}
+          error={error}
+          onClose={() => setEditing(null)}
+          onSave={handleSave}
+        />
+      )}
+    </>
+  );
+}
+
 function Runs() {
   const { data, refetch, isFetching } = useStudioRuntime();
-  const runs = data?.runs ?? [];
+  const allRuns = data?.runs ?? [];
+  const configurations = data?.configurations ?? [];
+  const [configurationFilter, setConfigurationFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [expandedRun, setExpandedRun] = useState<string | null>(null);
+  const statusOf = (run: StudioRun) =>
+    run.status === 100000000
+      ? "Successful"
+      : run.status === 100000001
+        ? "Running"
+        : "Error";
+  const runs = allRuns.filter(
+    (run) =>
+      (configurationFilter === "all" || run.configurationId === configurationFilter) &&
+      (statusFilter === "all" || statusOf(run) === statusFilter),
+  );
   const successes = runs.filter((run) => run.status === 100000000).length;
+  const failures = runs.filter((run) => statusOf(run) === "Error").length;
   const average = runs.length
     ? runs.reduce((total, run) => total + run.latencyMs, 0) / runs.length
     : 0;
   const tokens = runs.reduce((total, run) => total + run.tokens, 0);
+  const configurationById = new Map(configurations.map((item) => [item.id, item]));
   const formatDate = (value: string | null) =>
     value
       ? new Intl.DateTimeFormat("en-IE", {
@@ -3704,7 +4975,7 @@ function Runs() {
         }).format(new Date(value))
       : "Not available";
   return (
-    <Shell>
+    <>
       <div className="studio-page">
         <PageHeader
           eyebrow="Operations"
@@ -3721,6 +4992,39 @@ function Runs() {
             </ToolbarButton>
           }
         />
+        <div className="runs-filters" role="group" aria-label="Run filters">
+          <label>
+            <span>Configuration</span>
+            <Select
+              aria-label="Filter by configuration"
+              value={configurationFilter}
+              onChange={(event) => setConfigurationFilter(event.target.value)}
+            >
+              <option value="all">All configurations</option>
+              {configurations.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+          <label>
+            <span>Status</span>
+            <Select
+              aria-label="Filter by status"
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+            >
+              <option value="all">All statuses</option>
+              <option value="Successful">Successful</option>
+              <option value="Running">Running</option>
+              <option value="Error">Error</option>
+            </Select>
+          </label>
+          <small>
+            {runs.length} of {allRuns.length} runs
+          </small>
+        </div>
         <div className="run-summary">
           <div>
             <ActivityStat value={String(runs.length)} label="Recorded" />
@@ -3728,6 +5032,7 @@ function Runs() {
               value={`${runs.length ? ((successes / runs.length) * 100).toFixed(1) : "0"}%`}
               label="Successful"
             />
+            <ActivityStat value={String(failures)} label="Errors" />
             <ActivityStat
               value={`${(average / 1000).toFixed(1)} s`}
               label="Average duration"
@@ -3752,39 +5057,251 @@ function Runs() {
                 <TableHeaderCell>Status</TableHeaderCell>
                 <TableHeaderCell>Duration</TableHeaderCell>
                 <TableHeaderCell>Started</TableHeaderCell>
+                <TableHeaderCell aria-label="Flow run" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {runs.map((run) => {
-                const status =
-                  run.status === 100000000
-                    ? "Successful"
-                    : run.status === 100000001
-                      ? "Running"
-                      : "Error";
+                const status = statusOf(run);
+                const configuration = configurationById.get(run.configurationId);
+                const runUrl = cloudFlowRunUrl(
+                  data?.environmentId ?? "",
+                  configuration?.flowId ?? "",
+                  run.flowRunId,
+                );
+                const expanded = expandedRun === run.id;
                 return (
-                  <TableRow key={run.id}>
-                    <TableCell><code>{run.name}</code></TableCell>
-                    <TableCell>{data?.configurations[0]?.name ?? "Summary"}</TableCell>
-                    <TableCell>{run.accountName}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={status === "Successful" ? "status-live" : "status-draft"}
-                      >
-                        {status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{(run.latencyMs / 1000).toFixed(1)} s</TableCell>
-                    <TableCell>{formatDate(run.timestamp)}</TableCell>
-                  </TableRow>
+                  <Fragment key={run.id}>
+                    <TableRow
+                      className={status === "Error" ? "run-row-error" : undefined}
+                    >
+                      <TableCell><code>{run.name}</code></TableCell>
+                      <TableCell>
+                        <span className="table-value">
+                          <b>{run.configurationName}</b>
+                          <small>{run.promptName || run.model || "AI Prompt"}</small>
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="table-value">
+                          <b>{run.accountName}</b>
+                          <small>{run.targetEntity || configuration?.entity || "record"}</small>
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="table-value">
+                          <Badge
+                            variant="outline"
+                            className={
+                              status === "Successful"
+                                ? "status-live"
+                                : status === "Error"
+                                  ? "status-error"
+                                  : "status-draft"
+                            }
+                          >
+                            {status}
+                          </Badge>
+                          {run.error && (
+                            <button
+                              type="button"
+                              className="run-error-toggle"
+                              aria-expanded={expanded}
+                              onClick={() => setExpandedRun(expanded ? null : run.id)}
+                            >
+                              <ErrorCircle />
+                              {expanded ? "Hide error" : "Show error"}
+                            </button>
+                          )}
+                        </span>
+                      </TableCell>
+                      <TableCell>{(run.latencyMs / 1000).toFixed(1)} s</TableCell>
+                      <TableCell>{formatDate(run.timestamp)}</TableCell>
+                      <TableCell>
+                        {runUrl ? (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Open flow run ${run.name} in Power Automate`}
+                            title="Open flow run in Power Automate"
+                            onClick={() => window.open(runUrl, "_blank", "noopener")}
+                          >
+                            <OpenIcon />
+                          </Button>
+                        ) : null}
+                      </TableCell>
+                    </TableRow>
+                    {expanded && run.error && (
+                      <TableRow className="run-error-row">
+                        <TableCell colSpan={7}>
+                          <pre className="run-error">{run.error}</pre>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
                 );
               })}
+              {runs.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7}>
+                    <div className="catalog-empty-state">
+                      <History />
+                      <span>
+                        <b>No runs match these filters.</b>
+                        <small>Runs are recorded in csp_aiusage by the generated flows.</small>
+                      </span>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
       </div>
-    </Shell>
+    </>
+  );
+}
+
+function Summaries() {
+  const { data, refetch, isFetching } = useStudioRuntime();
+  const configurations = data?.configurations ?? [];
+  const [selectedId, setSelectedId] = useState("");
+  const configuration =
+    configurations.find((item) => item.id === selectedId) ?? configurations[0];
+  const outputTable = useMemo<DataverseTableMetadata | undefined>(
+    () =>
+      configuration
+        ? {
+            logicalName: configuration.outputEntity,
+            entitySetName:
+              configuration.outputEntitySetName ||
+              getTargetEntityIdentity(configuration.outputEntity).entitySet,
+            primaryIdAttribute:
+              configuration.outputEntity === configuration.entity
+                ? configuration.entityIdField
+                : getTargetEntityIdentity(configuration.outputEntity).idField,
+            displayName: configuration.outputEntity,
+          }
+        : undefined,
+    [configuration],
+  );
+  const outputMetadata = useDataverseTableMetadata(outputTable);
+  const nameAttribute = outputMetadata.data?.primaryNameAttribute ?? "name";
+  const summaries = useOutputSummaries(configuration, nameAttribute, data?.accounts ?? []);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const items = summaries.data ?? [];
+  const latest = items
+    .map((item) => item.generatedOn)
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
+  const formatDate = (value: string | null) =>
+    value
+      ? new Intl.DateTimeFormat("en-IE", {
+          day: "2-digit",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(new Date(value))
+      : "Unknown";
+  return (
+    <>
+      <div className="studio-page catalog-page">
+        <PageHeader
+          eyebrow="Results"
+          title="Generated summaries"
+          description="Records whose destination column already holds an AI summary written by the generated flow."
+          actions={
+            <ToolbarButton
+              appearance="subtle"
+              icon={<RefreshCw />}
+              onClick={() => {
+                refetch();
+                summaries.refetch();
+              }}
+              disabled={isFetching || summaries.isFetching}
+            >
+              {isFetching || summaries.isFetching ? "Refreshing" : "Refresh"}
+            </ToolbarButton>
+          }
+        />
+        <div className="runs-filters" role="group" aria-label="Summary filters">
+          <label>
+            <span>Configuration</span>
+            <Select
+              aria-label="Configuration"
+              value={configuration?.id ?? ""}
+              onChange={(event) => setSelectedId(event.target.value)}
+            >
+              {configurations.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </Select>
+          </label>
+          {configuration && (
+            <small>
+              Reading <code>{configuration.outputEntity}.{configuration.outputField}</code>
+              {" · "}
+              {items.length} record{items.length === 1 ? "" : "s"} with a summary
+              {latest ? ` · latest ${formatRelativeDate(latest)}` : ""}
+            </small>
+          )}
+        </div>
+        {summaries.isLoading ? (
+          <p className="flows-empty">Loading generated summaries…</p>
+        ) : summaries.isError ? (
+          <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {errorMessage(summaries.error, "Could not load the generated summaries.")}
+          </p>
+        ) : items.length === 0 ? (
+          <div className="catalog-grid">
+            <div className="catalog-empty-state">
+              <DocumentText />
+              <span>
+                <b>No summaries yet.</b>
+                <small>Run the generated flow and refresh to see the results here.</small>
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="summary-list">
+            {items.map((item) => {
+              const open = expanded === item.id;
+              return (
+                <article
+                  key={item.id}
+                  className={cn("summary-card", open && "open")}
+                >
+                  <header>
+                    <span className="entity-icon">
+                      <DocumentText />
+                    </span>
+                    <div>
+                      <b>{item.name}</b>
+                      <small>
+                        Generated {formatDate(item.generatedOn)} · <code>{item.id}</code>
+                      </small>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      aria-expanded={open}
+                      aria-label={`${open ? "Collapse" : "Expand"} summary for ${item.name}`}
+                      onClick={() => setExpanded(open ? null : item.id)}
+                    >
+                      {open ? "Collapse" : "Expand"}
+                    </Button>
+                  </header>
+                  <p className="summary-text">{item.summary}</p>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 function ActivityStat({ value, label }: { value: string; label: string }) {
@@ -3798,12 +5315,16 @@ function ActivityStat({ value, label }: { value: string; label: string }) {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Overview />} />
-      <Route path="/configurations/new" element={<Builder />} />
-      <Route path="/configurations/:configurationId" element={<Builder />} />
-      <Route path="/published/:configurationId" element={<Published />} />
-      <Route path="/runs" element={<Runs />} />
-    </Routes>
+    <Shell>
+      <Routes>
+        <Route path="/" element={<Overview />} />
+        <Route path="/configurations/new" element={<Builder />} />
+        <Route path="/configurations/:configurationId" element={<Builder />} />
+        <Route path="/published/:configurationId" element={<Published />} />
+        <Route path="/prompts" element={<Prompts />} />
+        <Route path="/summaries" element={<Summaries />} />
+        <Route path="/runs" element={<Runs />} />
+      </Routes>
+    </Shell>
   );
 }

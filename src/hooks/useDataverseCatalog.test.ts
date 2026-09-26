@@ -1,14 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { limitFetchXmlForPreview } from "./useDataverseCatalog";
+import { prepareFetchXmlForPreview } from "./useDataverseCatalog";
 
 describe("Dataverse record preview", () => {
-  it("places the preview limit in FetchXML instead of requiring an incompatible $top parameter", () => {
-    expect(limitFetchXmlForPreview('<fetch version="1.0"><entity name="account" /></fetch>', 10))
-      .toBe('<fetch version="1.0" top="10"><entity name="account" /></fetch>');
+  it("removes FetchXML limits that conflict with connector paging", () => {
+    expect(prepareFetchXmlForPreview('<fetch top="5000"><entity name="account" /></fetch>'))
+      .toBe('<fetch><entity name="account" /></fetch>');
   });
 
-  it("replaces an existing FetchXML top value", () => {
-    expect(limitFetchXmlForPreview('<fetch top="5000"><entity name="account" /></fetch>', 10))
-      .toBe('<fetch top="10"><entity name="account" /></fetch>');
+  it("keeps view attributes while stripping paging attributes", () => {
+    expect(
+      prepareFetchXmlForPreview(
+        '<fetch version="1.0" output-format="xml-platform" mapping="logical" count="50" page="2" paging-cookie="abc"><entity name="account" /></fetch>',
+      ),
+    ).toBe('<fetch version="1.0" output-format="xml-platform" mapping="logical"><entity name="account" /></fetch>');
+  });
+
+  it("leaves FetchXML without limits untouched", () => {
+    const xml = '<fetch distinct="true"><entity name="contact"><attribute name="fullname" /></entity></fetch>';
+    expect(prepareFetchXmlForPreview(xml)).toBe(xml);
   });
 });

@@ -10,7 +10,6 @@ import {
   Plus,
   Sparkles,
   ToggleLeft,
-  Trash2,
   Type,
   Wand2,
   X,
@@ -29,6 +28,11 @@ import {
 import { cn } from "@/lib/utils";
 
 /* ─── helpers ────────────────────────────────────────────────────── */
+
+function renderBucketIcon(bucket: AttributeBucket) {
+  const Icon = bucketIcon(bucket);
+  return <Icon className="h-3 w-3 shrink-0 text-muted-foreground" strokeWidth={1.75} />;
+}
 
 function bucketIcon(bucket: AttributeBucket) {
   switch (bucket) {
@@ -130,7 +134,6 @@ function ConditionRow({
   // Find the bucket for the picked attribute (defaults to unknown).
   const meta = attributes.find((a) => a.logicalName === condition.attribute);
   const bucket: AttributeBucket = meta ? meta.bucket : bucketFor(undefined);
-  const BucketIcon = bucketIcon(bucket);
   const operators = OPERATORS_BY_BUCKET[bucket];
   const needsValue = !NO_VALUE_OPERATORS.has(condition.operator);
   const inputType = valueInputType(bucket, condition.operator);
@@ -149,7 +152,7 @@ function ConditionRow({
         {(idx + 1).toString().padStart(2, "0")}
       </span>
       <div className="flex items-center gap-1.5">
-        <BucketIcon className="h-3 w-3 shrink-0 text-muted-foreground" strokeWidth={1.75} />
+        {renderBucketIcon(bucket)}
         <AttributeCombobox
           id={`attrs-${idx}`}
           value={condition.attribute}
@@ -214,10 +217,12 @@ export function VisualFilterBuilder({
     () => initialState ?? emptyBuilderState(targetEntity)
   );
 
-  // Re-initialise state when the target entity changes from outside
-  useEffect(() => {
-    setState((s) => (s.entity === targetEntity ? s : emptyBuilderState(targetEntity)));
-  }, [targetEntity]);
+  // Re-initialise state when the target entity changes from outside.
+  const [trackedEntity, setTrackedEntity] = useState(targetEntity);
+  if (trackedEntity !== targetEntity) {
+    setTrackedEntity(targetEntity);
+    setState(emptyBuilderState(targetEntity));
+  }
 
   const attributesQuery = useEntityAttributes(targetEntity);
   const attributes = attributesQuery.data ?? [];
@@ -437,7 +442,3 @@ export function VisualFilterBuilder({
   );
 }
 
-/* Re-export the Trash icon and ArrowUp/Down so callers can use them if needed.
-   Some bundlers tree-shake unused exports — keeping them imported above
-   guarantees the icons stay in the chunk. */
-export const _icons = { Trash2, ArrowUp, ArrowDown };

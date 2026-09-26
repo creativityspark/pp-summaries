@@ -5,6 +5,7 @@ import {
   buildPublishSignal,
   buildRecordSelectionFetchXml,
   compileRecipe,
+  estimateRecipeTokens,
   type SummaryConfigurationDraft,
 } from "./summaryConfiguration";
 import * as summaryConfiguration from "./summaryConfiguration";
@@ -63,7 +64,9 @@ describe("summary configuration persistence", () => {
       EntitySetName: "new_people",
       PrimaryIdAttribute: "new_personkey",
       DisplayCollectionName: { UserLocalizedLabel: { Label: "People" } },
+      PrimaryNameAttribute: "new_fullname",
     } }, fallback)).toEqual({
+      primaryNameAttribute: "new_fullname",
       logicalName: "new_person",
       entitySetName: "new_people",
       primaryIdAttribute: "new_personkey",
@@ -288,5 +291,20 @@ describe("summary configuration persistence", () => {
     expect(context).toContain('<link-entity name="contact" from="parentcustomerid" to="accountid"');
     expect(context).toContain('<attribute name="fullname" />');
     expect(context).toContain('<attribute name="emailaddress1" />');
+  });
+
+  it("estimates tokens from the prompt, fields, and related records", () => {
+    const base = estimateRecipeTokens({ promptContent: "", sourceFields: [], relationships: [] });
+    const withFields = estimateRecipeTokens({ promptContent: "", sourceFields: ["name", "revenue"], relationships: [] });
+    const withRelated = estimateRecipeTokens({
+      promptContent: "Summarize {{account_context}} for account managers.",
+      sourceFields: ["name", "revenue"],
+      relationships: [{ entity: "activitypointer", maxRecords: 12 }],
+    });
+
+    expect(base).toBeGreaterThan(0);
+    expect(withFields).toBeGreaterThan(base);
+    expect(withRelated).toBeGreaterThan(withFields);
+    expect(withRelated % 10).toBe(0);
   });
 });

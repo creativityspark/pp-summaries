@@ -136,12 +136,13 @@ describe("Creativity Spark Summary Studio", () => {
     ).toBeInTheDocument();
   });
 
-  it("embeds the sidebar brand without relying on a hosted or packaged image path", async () => {
+  it("embeds the real Creativity Spark logo without relying on a hosted image path", async () => {
     renderRoute("/");
 
     const brand = await screen.findByRole("img", { name: "Creativity Spark" });
-    expect(brand.querySelector("svg")).not.toBeNull();
-    expect(brand.querySelector("img")).toBeNull();
+    const logo = brand.querySelector("img");
+    expect(logo).not.toBeNull();
+    expect(logo?.getAttribute("src")).toMatch(/^data:image\/png;base64,/);
   });
 
   it("positions the product as a configurable summary automation studio", async () => {
@@ -160,7 +161,9 @@ describe("Creativity Spark Summary Studio", () => {
     expect(
       screen.getByRole("button", { name: /New configuration/ }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Foundry evaluations ready")).toBeInTheDocument();
+    expect(
+      await screen.findByText(/2 flows generated · 1 linked · 1 earlier version still active/),
+    ).toBeInTheDocument();
   });
 
   it("opens each configuration by its Dataverse identifier", async () => {
@@ -478,7 +481,7 @@ describe("Creativity Spark Summary Studio", () => {
     expect(screen.getByText("GPT-4.1 mini")).toBeInTheDocument();
     expect(screen.getAllByText("{{account_context}}").length).toBeGreaterThan(0);
     expect(
-      screen.getByText("Estimate · 1,240 tokens per run"),
+      screen.getByText(/Estimate · ~[\d,]+ tokens per run/),
     ).toBeInTheDocument();
     const editor = screen.getByRole("group", {
       name: "Prompt instructions editor",
@@ -492,7 +495,7 @@ describe("Creativity Spark Summary Studio", () => {
         .closest(".prompt-fluent-textarea"),
     ).not.toBeNull();
     expect(editor.querySelector(".prompt-editor-footer")).toHaveTextContent(
-      "Estimate · 1,240 tokens per run",
+      /Estimate · ~[\d,]+ tokens per run/,
     );
   });
 
@@ -590,12 +593,107 @@ describe("Creativity Spark Summary Studio", () => {
       screen.getByRole("button", { name: /View JSON contract/i }),
     ).toHaveClass("fui-Button");
     expect(
-      screen.getByText("csp_SUM_AccountOperations_v3"),
+      screen.getAllByText("PPS - Account operations summary - 0329").length,
+    ).toBeGreaterThan(0);
+    expect(
+      await screen.findByText("PPS - Account operations summary - 0851"),
     ).toBeInTheDocument();
+    expect(screen.getByText("Earlier version")).toBeInTheDocument();
     expect(screen.getByText("Configuration stored")).toBeInTheDocument();
     expect(screen.getByText("Flow definition prepared")).toBeInTheDocument();
     expect(screen.getAllByText("AI Prompt bound").length).toBeGreaterThan(0);
     expect(screen.getByText("Schema validated")).toBeInTheDocument();
     expect(screen.getByText("Stored in the solution")).toBeInTheDocument();
+  });
+
+  it("lists saved AI prompts and opens them for editing", async () => {
+    renderRoute("/prompts");
+
+    expect(
+      await screen.findByRole("heading", { name: "AI Prompts" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Open Account executive summary",
+      }),
+    );
+    expect(
+      await screen.findByLabelText("Prompt instructions content"),
+    ).toHaveValue("Generate an executive summary using {{account_context}}.");
+    expect(screen.getByLabelText("Prompt key")).toHaveValue("account-operations");
+    expect(
+      screen.getByRole("link", { name: "Account operations summary" }),
+    ).toHaveAttribute("href", "/configurations/mock-config");
+  });
+
+  it("explains that saving a prompt updates the shared Dataverse record", async () => {
+    renderRoute("/configurations/account-operations");
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Prompt and model/ }),
+    );
+    fireEvent.change(screen.getByLabelText("Prompt instructions"), {
+      target: { value: "Summarize {{account_context}} briefly." },
+    });
+    expect(screen.getByText(/Unsaved changes/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save prompt" })).toBeEnabled();
+  });
+
+  it("opens studio settings with the connection state and Power Platform shortcuts", async () => {
+    renderRoute("/");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    const pane = await screen.findByRole("complementary", { name: "Studio settings" });
+    expect(within(pane).getByText("Local demo data")).toBeInTheDocument();
+    expect(
+      within(pane).getByRole("link", { name: /Power Automate flows/ }),
+    ).toHaveAttribute("href", expect.stringContaining("make.powerautomate.com"));
+    fireEvent.click(within(pane).getByRole("button", { name: "Close" }));
+    expect(
+      screen.queryByRole("complementary", { name: "Studio settings" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows generated summaries for the selected configuration", async () => {
+    renderRoute("/summaries");
+
+    expect(
+      await screen.findByRole("heading", { name: "Generated summaries" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Contoso Retail")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Eight stores affected/),
+    ).toBeInTheDocument();
+  });
+
+  it("filters runs by status and links each run to Power Automate", async () => {
+    renderRoute("/runs");
+
+    expect(await screen.findByText("RUN-9284")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Filter by status"), {
+      target: { value: "Error" },
+    });
+    expect(screen.getByText("No runs match these filters.")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Filter by status"), {
+      target: { value: "all" },
+    });
+    expect(screen.getByText("RUN-9284")).toBeInTheDocument();
+  });
+
+  it("offers duplicate, deactivate, and delete actions for a configuration", async () => {
+    renderRoute("/");
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Actions for Account operations summary",
+      }),
+    );
+    expect(await screen.findByRole("menuitem", { name: "Duplicate" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(
+      within(dialog).getByText("Delete configuration?"),
+    ).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByText("Cancel"));
   });
 });
