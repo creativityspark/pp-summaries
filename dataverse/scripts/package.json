@@ -1,0 +1,11 @@
+{
+  "name": "irish-summit-2026-dataverse-scripts",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "create-tables": "node create-tables.mjs"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^3.5.0"
+  }
+}

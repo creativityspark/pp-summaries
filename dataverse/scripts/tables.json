@@ -1,0 +1,928 @@
+{
+  "solutionUniqueName": "BizzSummit2026",
+  "prefix": "csp",
+  "standardTableExtensions": [
+    {
+      "entityLogicalName": "account",
+      "attributes": [
+        {
+          "type": "Boolean",
+          "schemaName": "csp_IsDemo",
+          "displayName": "Is Demo Record",
+          "description": "Marks records created by the Irish Power Platform Summit 2026 demo seeding script so they can be safely cleaned up by clean-demo-data.mjs without touching production data."
+        }
+      ]
+    },
+    {
+      "entityLogicalName": "contact",
+      "attributes": [
+        {
+          "type": "Boolean",
+          "schemaName": "csp_IsDemo",
+          "displayName": "Is Demo Record",
+          "description": "Marks records created by the Irish Power Platform Summit 2026 demo seeding script so they can be safely cleaned up by clean-demo-data.mjs without touching production data."
+        }
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "schemaName": "csp_ContactLogEntry",
+      "displayName": "Contact Log Entry",
+      "displayCollectionName": "Contact Log Entries",
+      "description": "Real-world interaction between a sales rep (human) and a customer (call, email, meeting or note). The rep dictates or types what happened in their own words; an AI assistant then extracts structured fields (sentiment, competitors mentioned, products discussed, proposed follow-up) so the data flowing into the CRM is rich and queryable instead of free-form notes.",
+      "hasNotes": true,
+      "primaryAttribute": {
+        "schemaName": "csp_Name",
+        "displayName": "Name",
+        "description": "Short AI-generated title summarizing the interaction (e.g. 'Follow-up call with Marta - pricing concerns').",
+        "maxLength": 200,
+        "requiredLevel": "ApplicationRequired"
+      },
+      "attributes": [
+        {
+          "type": "Memo",
+          "schemaName": "csp_RawInput",
+          "displayName": "Raw Input",
+          "description": "Verbatim text or transcribed voice provided by the sales rep when logging the interaction. Kept untouched for audit and re-extraction.",
+          "maxLength": 4000
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_Summary",
+          "displayName": "Summary",
+          "description": "Markdown summary of the interaction produced by the AI from the rep's raw input.",
+          "maxLength": 2000
+        },
+        {
+          "type": "Picklist",
+          "schemaName": "csp_Sentiment",
+          "displayName": "Sentiment",
+          "description": "Sentiment inferred by the AI from the rep's description of the interaction.",
+          "options": [
+            { "value": 100000000, "label": "Positive" },
+            { "value": 100000001, "label": "Neutral" },
+            { "value": 100000002, "label": "Negative" },
+            { "value": 100000003, "label": "Risk" }
+          ]
+        },
+        {
+          "type": "Picklist",
+          "schemaName": "csp_InteractionType",
+          "displayName": "Interaction Type",
+          "description": "Channel through which the interaction took place.",
+          "options": [
+            { "value": 100000000, "label": "Call" },
+            { "value": 100000001, "label": "Email" },
+            { "value": 100000002, "label": "Meeting" },
+            { "value": 100000003, "label": "Note" }
+          ]
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_CompetitorsMentioned",
+          "displayName": "Competitors Mentioned",
+          "description": "Comma-separated list of competitors the AI extracted from the rep's input.",
+          "maxLength": 500
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_ProductsMentioned",
+          "displayName": "Products Mentioned",
+          "description": "Comma-separated list of products or services mentioned by the customer.",
+          "maxLength": 500
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_ProposedNextAction",
+          "displayName": "Proposed Next Action",
+          "description": "Single concrete follow-up action proposed by the AI based on this interaction.",
+          "maxLength": 500
+        },
+        {
+          "type": "DateTime",
+          "schemaName": "csp_InteractionDate",
+          "displayName": "Interaction Date",
+          "description": "Date and time when the interaction with the customer actually happened (not when it was logged)."
+        },
+        {
+          "type": "Lookup",
+          "schemaName": "csp_Account",
+          "displayName": "Account",
+          "description": "Account the interaction belongs to.",
+          "targetEntity": "account",
+          "requiredLevel": "ApplicationRequired"
+        },
+        {
+          "type": "Lookup",
+          "schemaName": "csp_Contact",
+          "displayName": "Contact",
+          "description": "Specific contact involved in the interaction, when known.",
+          "targetEntity": "contact"
+        }
+      ]
+    },
+    {
+      "schemaName": "csp_NextBestAction",
+      "displayName": "Next Best Action",
+      "displayCollectionName": "Next Best Actions",
+      "description": "AI-recommended action for the sales rep on a specific account, with lifecycle from Pending to Executed or Dismissed. Persisted so we can measure adoption and feed the governance dashboard.",
+      "hasNotes": false,
+      "primaryAttribute": {
+        "schemaName": "csp_Name",
+        "displayName": "Name",
+        "description": "Short title of the recommended action.",
+        "maxLength": 200,
+        "requiredLevel": "ApplicationRequired"
+      },
+      "attributes": [
+        {
+          "type": "Memo",
+          "schemaName": "csp_Description",
+          "displayName": "Description",
+          "description": "Detailed description of what the rep should do.",
+          "maxLength": 2000
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_Justification",
+          "displayName": "Justification",
+          "description": "Reasoning provided by the AI to justify this recommendation, shown to the rep to build trust.",
+          "maxLength": 2000
+        },
+        {
+          "type": "Picklist",
+          "schemaName": "csp_ActionType",
+          "displayName": "Action Type",
+          "description": "Channel or artifact the action will produce when executed.",
+          "options": [
+            { "value": 100000000, "label": "Email" },
+            { "value": 100000001, "label": "Call" },
+            { "value": 100000002, "label": "Task" },
+            { "value": 100000003, "label": "Meeting" },
+            { "value": 100000004, "label": "Proposal" }
+          ]
+        },
+        {
+          "type": "Picklist",
+          "schemaName": "csp_Priority",
+          "displayName": "Priority",
+          "description": "Suggested priority for the rep's queue.",
+          "options": [
+            { "value": 100000000, "label": "High" },
+            { "value": 100000001, "label": "Medium" },
+            { "value": 100000002, "label": "Low" }
+          ]
+        },
+        {
+          "type": "Picklist",
+          "schemaName": "csp_Status",
+          "displayName": "Status",
+          "description": "Lifecycle state of the recommendation.",
+          "options": [
+            { "value": 100000000, "label": "Pending" },
+            { "value": 100000001, "label": "Accepted" },
+            { "value": 100000002, "label": "Executed" },
+            { "value": 100000003, "label": "Dismissed" }
+          ]
+        },
+        {
+          "type": "DateTime",
+          "schemaName": "csp_GeneratedOn",
+          "displayName": "Generated On",
+          "description": "Timestamp when the AI generated this recommendation."
+        },
+        {
+          "type": "DateTime",
+          "schemaName": "csp_ExecutedOn",
+          "displayName": "Executed On",
+          "description": "Timestamp when the rep marked the action as executed."
+        },
+        {
+          "type": "Lookup",
+          "schemaName": "csp_Account",
+          "displayName": "Account",
+          "description": "Account this recommendation refers to.",
+          "targetEntity": "account",
+          "requiredLevel": "ApplicationRequired"
+        }
+      ]
+    },
+    {
+      "schemaName": "csp_WeeklyRecap",
+      "displayName": "Weekly Recap",
+      "displayCollectionName": "Weekly Recaps",
+      "description": "One record per sales rep per ISO week. Stores the AI-generated blog post, the synthesized audio podcast, the cover image and analytics counters. Powers the gallery and detail screens in the Code App.",
+      "hasNotes": false,
+      "primaryAttribute": {
+        "schemaName": "csp_Name",
+        "displayName": "Name",
+        "description": "Human-readable display name, e.g. 'Week 21 - May 18-22, 2026'.",
+        "maxLength": 200,
+        "requiredLevel": "ApplicationRequired"
+      },
+      "attributes": [
+        {
+          "type": "Integer",
+          "schemaName": "csp_WeekNumber",
+          "displayName": "Week Number",
+          "description": "ISO week number, 1 through 53.",
+          "minValue": 1,
+          "maxValue": 53
+        },
+        {
+          "type": "Integer",
+          "schemaName": "csp_Year",
+          "displayName": "Year",
+          "description": "Calendar year of the recap.",
+          "minValue": 2025,
+          "maxValue": 2100
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_BlogTitle",
+          "displayName": "Blog Title",
+          "description": "AI-generated catchy title for the blog version of the recap.",
+          "maxLength": 300
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_BlogContent",
+          "displayName": "Blog Content",
+          "description": "Full Markdown body of the weekly recap, structured as a narrative blog post.",
+          "maxLength": 32000
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_AudioUrl",
+          "displayName": "Audio URL",
+          "description": "Public URL of the synthesized MP3 podcast version of the recap.",
+          "maxLength": 1000,
+          "format": "Url"
+        },
+        {
+          "type": "Integer",
+          "schemaName": "csp_AudioDuration",
+          "displayName": "Audio Duration",
+          "description": "Duration of the audio recap in seconds.",
+          "minValue": 0,
+          "maxValue": 86400
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_CoverUrl",
+          "displayName": "Cover URL",
+          "description": "URL of the AI-generated cover image for the recap.",
+          "maxLength": 1000,
+          "format": "Url"
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_Highlights",
+          "displayName": "Highlights",
+          "description": "JSON array with the top three highlights of the week, shown on the gallery tile.",
+          "maxLength": 4000
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_Insight",
+          "displayName": "Insight",
+          "description": "AI-detected pattern of the week (e.g. 'most of your activity this week was in the retail segment').",
+          "maxLength": 2000
+        },
+        {
+          "type": "Integer",
+          "schemaName": "csp_TokensUsed",
+          "displayName": "Tokens Used",
+          "description": "Total tokens consumed across all AI calls that produced this recap, for governance reporting.",
+          "minValue": 0,
+          "maxValue": 10000000
+        }
+      ]
+    },
+    {
+      "schemaName": "csp_AccountHealth",
+      "displayName": "Account Health",
+      "displayCollectionName": "Account Health Snapshots",
+      "description": "Periodic snapshot of an account's health score and the underlying signals detected by the AI. Stored as a time series so we can show trend lines and detect deteriorating accounts early.",
+      "hasNotes": false,
+      "primaryAttribute": {
+        "schemaName": "csp_Name",
+        "displayName": "Name",
+        "description": "Snapshot display name (typically account name + date).",
+        "maxLength": 200,
+        "requiredLevel": "ApplicationRequired"
+      },
+      "attributes": [
+        {
+          "type": "Integer",
+          "schemaName": "csp_Score",
+          "displayName": "Score",
+          "description": "Health score between 0 (worst) and 100 (best) computed by the AI.",
+          "minValue": 0,
+          "maxValue": 100
+        },
+        {
+          "type": "Picklist",
+          "schemaName": "csp_Band",
+          "displayName": "Band",
+          "description": "Coloured band derived from the score, used in the portfolio UI.",
+          "options": [
+            { "value": 100000000, "label": "Green" },
+            { "value": 100000001, "label": "Yellow" },
+            { "value": 100000002, "label": "Red" }
+          ]
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_Signals",
+          "displayName": "Signals",
+          "description": "JSON array of the discrete signals that drove this score (e.g. 'silence > 30 days', 'open complaint', 'contract expiring < 60 days').",
+          "maxLength": 4000
+        },
+        {
+          "type": "DateTime",
+          "schemaName": "csp_CalculatedOn",
+          "displayName": "Calculated On",
+          "description": "Timestamp when the score was computed."
+        },
+        {
+          "type": "Lookup",
+          "schemaName": "csp_Account",
+          "displayName": "Account",
+          "description": "Account this health snapshot belongs to.",
+          "targetEntity": "account",
+          "requiredLevel": "ApplicationRequired"
+        }
+      ]
+    },
+    {
+      "schemaName": "csp_AIPrompt",
+      "displayName": "AI Prompt",
+      "displayCollectionName": "AI Prompts",
+      "description": "Editable Liquid prompt templates used by the Summary Studio engine. Each prompt is identified by a stable promptKey, stores its Liquid content, model and deployment metadata, and is invoked by Power Automate flows. Templates are rendered server-side via the custom Liquid Render API and then sent to an Azure AI Foundry deployment.",
+      "hasNotes": false,
+      "primaryAttribute": {
+        "schemaName": "csp_Name",
+        "displayName": "Name",
+        "description": "Human-readable prompt name shown in the AI Configuration UI.",
+        "maxLength": 200,
+        "requiredLevel": "ApplicationRequired"
+      },
+      "attributes": [
+        {
+          "type": "String",
+          "schemaName": "csp_PromptKey",
+          "displayName": "Prompt Key",
+          "description": "Stable machine key identifying the prompt (e.g. 'briefing', 'extract', 'nba', 'weekly-blog', 'weekly-insight', 'single-record-summary', 'periodic-aggregation'). Used by the flows and code app to bind to a specific prompt.",
+          "maxLength": 64,
+          "requiredLevel": "ApplicationRequired"
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_Description",
+          "displayName": "Description",
+          "description": "Short explanation of what this prompt does, shown in the UI.",
+          "maxLength": 500
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_SystemMessage",
+          "displayName": "System Message",
+          "description": "Optional system-role message sent before the user message. Liquid-rendered with the same context payload as csp_Content. Use for persona, tone and global constraints (e.g. 'You are an assistant specialised in B2B sales briefings').",
+          "maxLength": 8000
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_Content",
+          "displayName": "Prompt Content",
+          "description": "The Liquid template body sent to the model after rendering. Supports full Liquid syntax: {{variables}}, {% if %}, {% for %}, {% include %}, filters and capture blocks. Rendered server-side by the Liquid Render API with the context payload built by the flow.",
+          "maxLength": 32000
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_ExpectedVariables",
+          "displayName": "Expected Variables",
+          "description": "JSON array describing the variables the Liquid template expects to receive from the flow's context payload. Used by the AI Configuration editor for autocomplete and validation. Example: [{\"name\":\"record\",\"type\":\"object\",\"description\":\"The target Dataverse record\"},{\"name\":\"logs\",\"type\":\"array\",\"description\":\"Related contact logs\"}].",
+          "maxLength": 8000
+        },
+        {
+          "type": "Picklist",
+          "schemaName": "csp_OutputFormat",
+          "displayName": "Output Format",
+          "description": "Expected output format of the model response. Used by the flow to choose validation strategy and by the UI to choose rendering style.",
+          "options": [
+            { "value": 100000000, "label": "Markdown" },
+            { "value": 100000001, "label": "Json" },
+            { "value": 100000002, "label": "Html" },
+            { "value": 100000003, "label": "Text" }
+          ]
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_OutputSchema",
+          "displayName": "Output Schema",
+          "description": "When csp_OutputFormat is 'Json', this is the JSON Schema used to validate the model response. Empty for non-JSON outputs. Will also serve as the structural contract for future citation/grounding features.",
+          "maxLength": 8000
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_Model",
+          "displayName": "Model",
+          "description": "Logical model identifier (e.g. 'gpt-4o-mini', 'gpt-5', 'claude-3-5-sonnet'). Informational; the actual call targets csp_DeploymentName on the configured Azure AI Foundry endpoint.",
+          "maxLength": 64
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_DeploymentName",
+          "displayName": "Deployment Name",
+          "description": "Name of the Azure AI Foundry deployment this prompt is invoked against. Different prompts can target different deployments (e.g. a cheap mini model for extraction, a stronger model for briefings).",
+          "maxLength": 100
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_Version",
+          "displayName": "Version",
+          "description": "Semantic version tag for this prompt (e.g. 'v1.0'). Stored on every cache and usage row so output can be traced back to the exact prompt that produced it.",
+          "maxLength": 32
+        },
+        {
+          "type": "Boolean",
+          "schemaName": "csp_Enabled",
+          "displayName": "Enabled",
+          "description": "Whether this prompt is currently active. Disabled prompts are skipped by the flows."
+        },
+        {
+          "type": "Decimal",
+          "schemaName": "csp_Temperature",
+          "displayName": "Temperature",
+          "description": "Sampling temperature for the model. 0.0 = deterministic, 1.0 = creative.",
+          "minValue": 0,
+          "maxValue": 1,
+          "precision": 2
+        },
+        {
+          "type": "Integer",
+          "schemaName": "csp_MaxTokens",
+          "displayName": "Max Tokens",
+          "description": "Maximum tokens the model may produce in a single response.",
+          "minValue": 100,
+          "maxValue": 16000
+        },
+        {
+          "type": "DateTime",
+          "schemaName": "csp_LastRunOn",
+          "displayName": "Last Run On",
+          "description": "Timestamp when this prompt was last executed by a flow."
+        },
+        {
+          "type": "Integer",
+          "schemaName": "csp_TokensLastRun",
+          "displayName": "Tokens Last Run",
+          "description": "Total tokens consumed (input + output) in the most recent run of this prompt.",
+          "minValue": 0,
+          "maxValue": 1000000
+        }
+      ]
+    },
+    {
+      "schemaName": "csp_AISummaryConfig",
+      "displayName": "AI Summary Config",
+      "displayCollectionName": "AI Summary Configs",
+      "description": "Declarative recipe for a recurring or on-demand AI summary. Binds a target Dataverse entity, a query that defines which records are summarised, a prompt that defines how, a cadence that defines when, and an output destination. The run-summary-config flow consumes these rows and produces csp_aisummarycache entries.",
+      "hasNotes": false,
+      "primaryAttribute": {
+        "schemaName": "csp_Name",
+        "displayName": "Name",
+        "description": "Human-readable config name (e.g. 'Weekly EMEA Tier-1 Accounts').",
+        "maxLength": 200,
+        "requiredLevel": "ApplicationRequired"
+      },
+      "attributes": [
+        {
+          "type": "Memo",
+          "schemaName": "csp_Description",
+          "displayName": "Description",
+          "description": "What this config does, who it serves, and any business context the admin wants to capture.",
+          "maxLength": 2000
+        },
+        {
+          "type": "Picklist",
+          "schemaName": "csp_Cadence",
+          "displayName": "Cadence",
+          "description": "When the summary should run. Use OnDemand for manual-only configs (e.g. a button in the app). Custom unlocks csp_CronExpression for arbitrary schedules.",
+          "options": [
+            { "value": 100000000, "label": "OnDemand" },
+            { "value": 100000001, "label": "Daily" },
+            { "value": 100000002, "label": "Weekly" },
+            { "value": 100000003, "label": "Monthly" },
+            { "value": 100000004, "label": "Custom" }
+          ]
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_CronExpression",
+          "displayName": "Cron Expression",
+          "description": "Standard cron expression used when csp_Cadence is Custom. Ignored otherwise.",
+          "maxLength": 100
+        },
+        {
+          "type": "Picklist",
+          "schemaName": "csp_Mode",
+          "displayName": "Mode",
+          "description": "PerRecord runs the prompt once per record returned by the query. Aggregate runs the prompt once with all records as the context. Picks which prompt pattern applies.",
+          "options": [
+            { "value": 100000000, "label": "PerRecord" },
+            { "value": 100000001, "label": "Aggregate" }
+          ]
+        },
+        {
+          "type": "Lookup",
+          "schemaName": "csp_Prompt",
+          "displayName": "Prompt",
+          "description": "AI prompt template used to generate the summary. Must be Enabled and have csp_OutputFormat compatible with how the consumer will render results.",
+          "targetEntity": "csp_aiprompt",
+          "requiredLevel": "ApplicationRequired"
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_TargetEntity",
+          "displayName": "Target Entity",
+          "description": "Logical name of the Dataverse entity being summarised (e.g. 'account', 'incident', 'opportunity'). Must match the returnedtypecode of the resolved FetchXML.",
+          "maxLength": 100,
+          "requiredLevel": "ApplicationRequired"
+        },
+        {
+          "type": "Picklist",
+          "schemaName": "csp_QueryMode",
+          "displayName": "Query Mode",
+          "description": "How the FetchXML is sourced. SystemView references a saved query on csp_TargetEntity. UserView references a personal query of the config owner. CustomFetchXML stores raw FetchXML on csp_FetchXml.",
+          "options": [
+            { "value": 100000000, "label": "SystemView" },
+            { "value": 100000001, "label": "UserView" },
+            { "value": 100000002, "label": "CustomFetchXML" }
+          ]
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_SystemViewId",
+          "displayName": "System View Id",
+          "description": "GUID of the saved system query (savedquery row) that defines which records the summary covers. Used when csp_QueryMode is SystemView. Stored as a String because Dataverse does not allow OneToMany lookups to system metadata tables. The Code App resolves it via GET /savedqueries(<id>) when needed.",
+          "maxLength": 50
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_UserViewId",
+          "displayName": "User View Id",
+          "description": "GUID of the personal user query (userquery row) that defines which records the summary covers. Used when csp_QueryMode is UserView. The owner of the config must own the referenced userquery. Stored as a String because Dataverse does not allow OneToMany lookups to system metadata tables.",
+          "maxLength": 50
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_FetchXml",
+          "displayName": "FetchXML",
+          "description": "Raw FetchXML used when csp_QueryMode is CustomFetchXML. Supports parametrisation via Liquid-style tokens that are resolved by the flow before execution: {{ currentuser }}, {{ today }}, {{ weekstart }}, {{ weekend }}, {{ monthstart }}, {{ monthend }}.",
+          "maxLength": 32000
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_RelatedFetchXml",
+          "displayName": "Related FetchXML",
+          "description": "Optional second FetchXML used to fetch related data for each target record (e.g. last N contact logs for each account). Supports a {{ recordId }} token that the flow substitutes per record. Loaded into the prompt context payload as 'related'.",
+          "maxLength": 32000
+        },
+        {
+          "type": "Integer",
+          "schemaName": "csp_MaxRecords",
+          "displayName": "Max Records",
+          "description": "Defensive cap on the number of records the query returns. Prevents huge queries from blowing the model context window. Default 100.",
+          "minValue": 1,
+          "maxValue": 5000
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_Language",
+          "displayName": "Language",
+          "description": "Language code passed to the prompt as a variable (e.g. 'es-ES', 'en-US'). The prompt template decides whether and how to use it.",
+          "maxLength": 10
+        },
+        {
+          "type": "Picklist",
+          "schemaName": "csp_OutputDestination",
+          "displayName": "Output Destination",
+          "description": "Where the resulting summary is delivered. Cache always persists to csp_aisummarycache and is the source of truth. The combined options also notify the recipients in csp_NotifyRecipients via the chosen channel.",
+          "options": [
+            { "value": 100000000, "label": "Cache" },
+            { "value": 100000001, "label": "CacheAndEmail" },
+            { "value": 100000002, "label": "CacheAndTeams" },
+            { "value": 100000003, "label": "CacheEmailAndTeams" }
+          ]
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_OutputContext",
+          "displayName": "Output Context",
+          "description": "JSON object with destination-specific details (e.g. {\"teamId\":\"...\",\"channelId\":\"...\"} for Teams, {\"subjectTemplate\":\"...\"} for email). Schema depends on csp_OutputDestination.",
+          "maxLength": 4000
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_NotifyRecipients",
+          "displayName": "Notify Recipients",
+          "description": "Who is notified when the summary completes. JSON object with three optional arrays: {\"users\":[\"<systemuserId>\",...],\"teams\":[\"<teamId>\",...],\"emails\":[\"external@partner.com\",...]}.",
+          "maxLength": 4000
+        },
+        {
+          "type": "Boolean",
+          "schemaName": "csp_Enabled",
+          "displayName": "Enabled",
+          "description": "Whether this config is active. Disabled configs are skipped by the scheduled runner."
+        },
+        {
+          "type": "DateTime",
+          "schemaName": "csp_NextRun",
+          "displayName": "Next Run",
+          "description": "Timestamp of the next scheduled execution. Calculated and updated by the scheduled runner after each run."
+        },
+        {
+          "type": "DateTime",
+          "schemaName": "csp_LastRun",
+          "displayName": "Last Run",
+          "description": "Timestamp of the last execution attempt."
+        },
+        {
+          "type": "Picklist",
+          "schemaName": "csp_LastRunStatus",
+          "displayName": "Last Run Status",
+          "description": "Outcome of the last execution. Running is set at the start of a run; Success/Failure/PartialFailure on completion.",
+          "options": [
+            { "value": 100000000, "label": "Success" },
+            { "value": 100000001, "label": "PartialFailure" },
+            { "value": 100000002, "label": "Failure" },
+            { "value": 100000003, "label": "Running" }
+          ]
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_LastRunError",
+          "displayName": "Last Run Error",
+          "description": "Error message or short stack trace from the last failed run. Empty on Success.",
+          "maxLength": 4000
+        },
+        {
+          "type": "Integer",
+          "schemaName": "csp_LastRunDurationMs",
+          "displayName": "Last Run Duration (ms)",
+          "description": "Wall-clock duration of the last full execution (query + render + model call + persistence) in milliseconds.",
+          "minValue": 0,
+          "maxValue": 3600000
+        }
+      ]
+    },
+    {
+      "schemaName": "csp_AISummaryCache",
+      "displayName": "AI Summary Cache",
+      "displayCollectionName": "AI Summary Caches",
+      "description": "Persistent store for every AI summary produced by the Summary Studio engine. Each row links to the config that produced it, the prompt version that was used, and either an Account (legacy SMBC entries) or a generic target record (csp_TargetEntity + csp_TargetRecordId). Source of truth for the Recent Summaries page and any consumer surface.",
+      "hasNotes": false,
+      "primaryAttribute": {
+        "schemaName": "csp_Name",
+        "displayName": "Name",
+        "description": "Cache entry display name, typically the target record's name and summary type.",
+        "maxLength": 200,
+        "requiredLevel": "ApplicationRequired"
+      },
+      "attributes": [
+        {
+          "type": "Lookup",
+          "schemaName": "csp_Account",
+          "displayName": "Account",
+          "description": "Account this cache entry summarizes, when the target entity is account. Kept optional so the table can hold summaries for any entity via csp_TargetEntity + csp_TargetRecordId.",
+          "targetEntity": "account"
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_TargetEntity",
+          "displayName": "Target Entity",
+          "description": "Logical name of the entity this summary describes (e.g. 'account', 'incident', 'opportunity'). For Aggregate-mode summaries this is the entity being aggregated.",
+          "maxLength": 100
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_TargetRecordId",
+          "displayName": "Target Record Id",
+          "description": "GUID of the specific record this summary describes (PerRecord mode). Empty for Aggregate-mode summaries.",
+          "maxLength": 50
+        },
+        {
+          "type": "Lookup",
+          "schemaName": "csp_SummaryConfig",
+          "displayName": "Summary Config",
+          "description": "Config that produced this summary. Empty for ad-hoc summaries generated outside the declarative engine (e.g. legacy SMBC briefings).",
+          "targetEntity": "csp_aisummaryconfig"
+        },
+        {
+          "type": "Lookup",
+          "schemaName": "csp_Prompt",
+          "displayName": "Prompt",
+          "description": "Prompt that produced this summary. Kept as lookup for traceability; csp_PromptVersion stores the exact version label even if the prompt is later edited.",
+          "targetEntity": "csp_aiprompt"
+        },
+        {
+          "type": "Picklist",
+          "schemaName": "csp_SummaryType",
+          "displayName": "Summary Type",
+          "description": "Semantic kind of the summary. Distinct from csp_aisummaryconfig.csp_Cadence (which is about scheduling).",
+          "options": [
+            { "value": 100000000, "label": "Briefing" },
+            { "value": 100000001, "label": "Risk" },
+            { "value": 100000002, "label": "Opportunity" },
+            { "value": 100000003, "label": "Custom" }
+          ]
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_Content",
+          "displayName": "Content",
+          "description": "Body of the cached summary. Format depends on the prompt's csp_OutputFormat (markdown / html / json / text).",
+          "maxLength": 32000
+        },
+        {
+          "type": "DateTime",
+          "schemaName": "csp_GeneratedOn",
+          "displayName": "Generated On",
+          "description": "Timestamp when this cache entry was generated."
+        },
+        {
+          "type": "Integer",
+          "schemaName": "csp_TokensUsed",
+          "displayName": "Tokens Used",
+          "description": "Tokens consumed to generate this summary (input + output).",
+          "minValue": 0,
+          "maxValue": 10000000
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_PromptVersion",
+          "displayName": "Prompt Version",
+          "description": "Version tag of the prompt that produced this content, captured at generation time so the content stays traceable even if the prompt is later edited.",
+          "maxLength": 50
+        }
+      ]
+    },
+    {
+      "schemaName": "csp_AIUsage",
+      "displayName": "AI Usage",
+      "displayCollectionName": "AI Usage Logs",
+      "description": "Append-only log of every AI prompt invocation. Feeds the governance dashboard with token consumption, latency and estimated cost. One row per model call, even when a single summary config produces multiple calls (PerRecord mode).",
+      "hasNotes": false,
+      "primaryAttribute": {
+        "schemaName": "csp_Name",
+        "displayName": "Name",
+        "description": "Usage log entry display name (typically prompt name + timestamp).",
+        "maxLength": 200,
+        "requiredLevel": "ApplicationRequired"
+      },
+      "attributes": [
+        {
+          "type": "Lookup",
+          "schemaName": "csp_PromptLookup",
+          "displayName": "Prompt",
+          "description": "Prompt that was invoked. Optional so historical rows survive even if the prompt is later deleted; csp_PromptName captures the name as a snapshot. Named csp_PromptLookup (not csp_Prompt) to avoid the auto-generated csp_promptname denormalisation colliding with the existing csp_PromptName String column.",
+          "targetEntity": "csp_aiprompt"
+        },
+        {
+          "type": "Lookup",
+          "schemaName": "csp_SummaryConfig",
+          "displayName": "Summary Config",
+          "description": "Config that triggered this invocation. Empty when the call was triggered outside the declarative engine.",
+          "targetEntity": "csp_aisummaryconfig"
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_PromptName",
+          "displayName": "Prompt Name",
+          "description": "Snapshot of the prompt's name at call time. Kept as String so the row remains informative even if the prompt is deleted.",
+          "maxLength": 200
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_TargetEntity",
+          "displayName": "Target Entity",
+          "description": "Logical name of the entity the call was about (e.g. 'account', 'incident'). Empty for calls not tied to a specific entity.",
+          "maxLength": 100
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_TargetRecordId",
+          "displayName": "Target Record Id",
+          "description": "GUID of the specific record the call was about. Empty for Aggregate-mode calls or non-record-bound calls.",
+          "maxLength": 50
+        },
+        {
+          "type": "Integer",
+          "schemaName": "csp_TokensInput",
+          "displayName": "Tokens Input",
+          "description": "Number of prompt tokens sent to the model.",
+          "minValue": 0,
+          "maxValue": 10000000
+        },
+        {
+          "type": "Integer",
+          "schemaName": "csp_TokensOutput",
+          "displayName": "Tokens Output",
+          "description": "Number of completion tokens returned by the model.",
+          "minValue": 0,
+          "maxValue": 10000000
+        },
+        {
+          "type": "Decimal",
+          "schemaName": "csp_EstimatedCost",
+          "displayName": "Estimated Cost",
+          "description": "Estimated cost of this call in EUR based on the active model's price sheet.",
+          "precision": 4,
+          "minValue": 0,
+          "maxValue": 1000
+        },
+        {
+          "type": "Integer",
+          "schemaName": "csp_LatencyMs",
+          "displayName": "Latency (ms)",
+          "description": "Round-trip latency of the AI call in milliseconds.",
+          "minValue": 0,
+          "maxValue": 600000
+        },
+        {
+          "type": "String",
+          "schemaName": "csp_Model",
+          "displayName": "Model",
+          "description": "Identifier of the model that handled the call (e.g. 'gpt-4o-mini', 'gpt-5').",
+          "maxLength": 100
+        },
+        {
+          "type": "DateTime",
+          "schemaName": "csp_Timestamp",
+          "displayName": "Timestamp",
+          "description": "When the call was made."
+        },
+        {
+          "type": "Lookup",
+          "schemaName": "csp_Account",
+          "displayName": "Account",
+          "description": "Account the AI call was about, when applicable. Kept for legacy SMBC compatibility; for the generic engine prefer csp_TargetEntity + csp_TargetRecordId.",
+          "targetEntity": "account"
+        },
+        {
+          "type": "Lookup",
+          "schemaName": "csp_User",
+          "displayName": "User",
+          "description": "User on whose behalf the AI call was made.",
+          "targetEntity": "systemuser"
+        }
+      ]
+    },
+    {
+      "schemaName": "csp_UserFeedback",
+      "displayName": "User Feedback",
+      "displayCollectionName": "User Feedback Entries",
+      "description": "Thumbs-up / thumbs-down feedback that users give on any AI-generated artifact (briefing, next best action, weekly recap). Used to refine prompts and surface low-quality outputs.",
+      "hasNotes": false,
+      "primaryAttribute": {
+        "schemaName": "csp_Name",
+        "displayName": "Name",
+        "description": "Feedback entry display name.",
+        "maxLength": 200,
+        "requiredLevel": "ApplicationRequired"
+      },
+      "attributes": [
+        {
+          "type": "PolymorphicLookup",
+          "schemaName": "csp_Target",
+          "displayName": "Target",
+          "description": "AI-generated artifact the user is rating. Multi-table lookup to the three artifact types the user can give feedback on.",
+          "targets": ["csp_aisummarycache", "csp_nextbestaction", "csp_weeklyrecap"]
+        },
+        {
+          "type": "Boolean",
+          "schemaName": "csp_IsUseful",
+          "displayName": "Is Useful",
+          "description": "True if the user found the AI output useful; false otherwise."
+        },
+        {
+          "type": "Memo",
+          "schemaName": "csp_Comment",
+          "displayName": "Comment",
+          "description": "Optional free-form comment from the user explaining their rating.",
+          "maxLength": 2000
+        },
+        {
+          "type": "Lookup",
+          "schemaName": "csp_User",
+          "displayName": "User",
+          "description": "User who provided the feedback.",
+          "targetEntity": "systemuser"
+        }
+      ]
+    }
+  ]
+}

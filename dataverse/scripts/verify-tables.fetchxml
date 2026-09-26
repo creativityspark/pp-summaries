@@ -1,0 +1,10 @@
+<fetch>
+  <entity name="entity">
+    <attribute name="logicalname" />
+    <attribute name="originallocalizedname" />
+    <filter>
+      <condition attribute="logicalname" operator="like" value="csp_%" />
+    </filter>
+    <order attribute="logicalname" />
+  </entity>
+</fetch>
