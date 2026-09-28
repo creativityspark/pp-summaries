@@ -64,6 +64,11 @@ const nativeApis: Record<string, NativeApiDefinition> = {
     method: "GET",
     parameters: [],
   },
+  StudioGetFlowTemplate: {
+    path: "/api/data/v9.0/webresourceset?$select=name,modifiedon&$filter=name%20eq%20'{name}'",
+    method: "GET",
+    parameters: [{ name: "name", in: "path", required: true, type: "string" }],
+  },
   StudioGetSolution: {
     path: "/api/data/v9.0/solutions?$select=solutionid,uniquename,friendlyname,version&$filter=uniquename%20eq%20'{uniqueName}'",
     method: "GET",

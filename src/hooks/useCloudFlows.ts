@@ -140,6 +140,32 @@ export function useStudioSolution() {
   });
 }
 
+/** Web resource the generator renders into every summary flow. */
+export const FLOW_TEMPLATE_NAME = "csp_/flowtemplates/run-summary.htm";
+
+/** Last modification of the flow template; flows created before it use an older definition. */
+export function useFlowTemplateVersion() {
+  return useQuery({
+    queryKey: ["flow-template", FLOW_TEMPLATE_NAME],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<string | null> => {
+      if (!isPowerAppsRuntime()) return null;
+      const result = await dataverseGet(
+        "StudioGetFlowTemplate",
+        { name: FLOW_TEMPLATE_NAME },
+        "Dataverse could not read the flow template.",
+      );
+      const raw = mapDataverseRecords(result)[0];
+      return raw?.modifiedon ? String(raw.modifiedon) : null;
+    },
+  });
+}
+
+export function isFlowOutdated(flowCreatedOn: string | null, templateModifiedOn: string | null | undefined) {
+  if (!flowCreatedOn || !templateModifiedOn) return false;
+  return new Date(flowCreatedOn).getTime() < new Date(templateModifiedOn).getTime();
+}
+
 export function solutionUrl(environmentId: string, solutionId: string) {
   if (!environmentId) return "";
   return solutionId

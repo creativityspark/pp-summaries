@@ -123,9 +123,11 @@ import {
   STUDIO_SOLUTION_UNIQUE_NAME,
   cloudFlowRunUrl,
   cloudFlowUrl,
+  isFlowOutdated,
   relatedCloudFlows,
   solutionUrl,
   useCloudFlows,
+  useFlowTemplateVersion,
   useStudioSolution,
 } from "@/hooks/useCloudFlows";
 import { useOutputSummaries } from "@/hooks/useOutputSummaries";
@@ -1438,7 +1440,7 @@ function PromptAssistantPane({
         <header>
           <div>
             <p className="micro-label text-brand-blue">
-              AI-assisted prompt builder
+              Guided prompt builder
             </p>
             <h2>Design a better prompt</h2>
           </div>
@@ -1746,7 +1748,7 @@ function PromptStep({
             <ChevronRight />
           </button>
         </LabeledField>
-        <LabeledField label="Model">
+        <LabeledField label="Requested model">
           <button
             type="button"
             className="field-control compact w-full text-left"
@@ -1758,7 +1760,7 @@ function PromptStep({
               <b>
                 {draft.model.replace("gpt-", "GPT-").replace("-mini", " mini")}
               </b>
-              <code>AI Builder model</code>
+              <code>Logged per run</code>
             </span>
           </button>
         </LabeledField>
@@ -4281,6 +4283,11 @@ function Published() {
   const generatedFlows = configuration
     ? relatedCloudFlows(flows.data ?? [], configuration)
     : [];
+  const templateVersion = useFlowTemplateVersion();
+  const linkedFlow = generatedFlows.find((flow) => flow.linked);
+  const linkedFlowOutdated = linkedFlow
+    ? isFlowOutdated(linkedFlow.createdOn, templateVersion.data)
+    : false;
   const activeEarlierVersions = generatedFlows.filter(
     (flow) => !flow.linked && flow.state === "Activated",
   ).length;
@@ -4424,7 +4431,7 @@ function Published() {
                       <b>{flow.name}</b>
                       <small>
                         {flow.state}
-                        {flow.modifiedOn ? ` · updated ${formatRelativeDate(flow.modifiedOn)}` : ""}
+                        {flow.createdOn ? ` · generated ${formatRelativeDate(flow.createdOn)}` : ""}
                         {" · "}
                         <code>{flow.id}</code>
                       </small>
@@ -4448,6 +4455,16 @@ function Published() {
                 );
               })}
             </ul>
+          )}
+          {linkedFlowOutdated && (
+            <p className="flows-warning">
+              <Warning />
+              <span>
+                The linked flow was generated before the latest change to the flow
+                template. Publish the configuration again to regenerate it; the
+                current flow is turned off automatically.
+              </span>
+            </p>
           )}
           {activeEarlierVersions > 0 && (
             <p className="flows-warning">

@@ -78,12 +78,34 @@ Summary Studio uses standard AI Builder metadata together with a small configura
 | --- | --- |
 | `msdyn_aimodel` | AI Builder model and prompt definition metadata. |
 | `msdyn_aiconfiguration` | Model configuration related to `msdyn_aimodel` through the standard 1:N relationship. |
-| `csp_aisummaryconfig` | Versioned summary recipe consumed by the generator flow. |
-| `csp_aisummarycache` | Optional history/cache for generated summaries. |
+| `csp_aisummaryconfig` | Versioned summary recipe consumed by the generator flow. `csp_processid` links the cloud flow generated for it. |
+| `csp_aiprompt` | Reusable prompt instructions, editable from the Prompts page. |
+| `csp_aisummarycache` | History of every generated summary. |
 | `csp_aiusage` | Run status, latency, token usage, and target-record telemetry. |
 | `account.csp_aisummary` | Example destination column used by the summit demo. |
 
 The prompt picker is intended to surface reusable AI Builder prompts from `msdyn_aimodel` and their related `msdyn_aiconfiguration` records. The summary recipe stores the stable prompt binding required by the generator.
+
+## Generator backend
+
+The backend lives in the `PowerPlatformSummaries` solution and is exported, unpacked, under [`dataverse/PowerPlatformSummaries`](dataverse/PowerPlatformSummaries).
+
+1. **Publish.** Summary Studio sets the configuration status to *Active* (`statuscode = 787000001`).
+2. **PPS - Create Flow** reacts to that change. It turns off the flow generated for the previous version, renders the flow template with the recipe, creates the cloud flow, activates it, and links it through `csp_processid`.
+3. **Flow template** [`csp_/flowtemplates/run-summary.htm`](dataverse/flowtemplates/run-summary.htm) is a Liquid template rendered by `csp_Templates_RenderWebResourceTemplate`. It fixes only what must be static: source table, trigger columns (which exclude the output column, preventing loops), and output column.
+4. **Generated flow** reads the recipe and prompt at run time, so edits made in the studio apply without regenerating. For each changed row it checks the record-selection FetchXML, compiles the per-record context, runs the AI Builder prompt, writes the summary, and records `csp_aisummarycache` and `csp_aiusage` rows, including failures.
+
+A new flow needs a few minutes after activation before its Dataverse trigger starts firing.
+
+## Studio pages
+
+| Page | Purpose |
+| --- | --- |
+| Configurations | Catalog of recipes with duplicate, deactivate, and delete actions and the generated-flow status. |
+| Design summary | Five-stage editor: data and context, prompt and model, destination, execution, review and publish. |
+| Prompts | Library of reusable AI Prompts with the configurations bound to each one. |
+| Summaries | Records whose destination column holds a generated summary. |
+| Runs | Executions from `csp_aiusage`, filterable, with error details and links to the flow run. |
 
 ## Summary recipe contract
 
@@ -122,6 +144,11 @@ The canonical schema lives at [`schemas/summary-recipe.schema.json`](schemas/sum
 
 ```text
 .
+├── dataverse/
+│   ├── BizzSummit2026/          Solution project: tables and the Code App
+│   ├── PowerPlatformSummaries/  Backend solution: generator and flows (unpacked)
+│   ├── flowtemplates/           Flow template and generator definitions
+│   └── scripts/                 Inventory and demo-data migration scripts
 ├── docs/assets/                 README and architecture assets
 ├── examples/                    Example summary recipes
 ├── schemas/                     JSON Schema contracts
