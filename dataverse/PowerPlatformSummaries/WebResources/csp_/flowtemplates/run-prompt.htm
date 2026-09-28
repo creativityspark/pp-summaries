@@ -1,0 +1,209 @@
+{
+    "properties": {
+        "connectionReferences": {
+            "shared_commondataserviceforapps-1": {
+                "api": {
+                    "name": "shared_commondataserviceforapps"
+                },
+                "connection": {
+                    "connectionReferenceLogicalName": "csp_sharedcommondataserviceforapps_27015"
+                },
+                "runtimeSource": "embedded"
+            },
+            "shared_commondataserviceforapps": {
+                "api": {
+                    "name": "shared_commondataserviceforapps"
+                },
+                "connection": {
+                    "connectionReferenceLogicalName": "csp_sharedcommondataserviceforapps_a3be6"
+                },
+                "runtimeSource": "embedded"
+            }
+        },
+        "definition": {
+            "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+            "contentVersion": "1.0.0.0",
+            "parameters": {
+                "$authentication": {
+                    "defaultValue": {},
+                    "type": "SecureObject"
+                },
+                "$connections": {
+                    "defaultValue": {},
+                    "type": "Object"
+                }
+            },
+            "triggers": {
+                "When_a_row_is_added,_modified_or_deleted": {
+                    "type": "OpenApiConnectionWebhook",
+                    "inputs": {
+                        "parameters": {
+                            "subscriptionRequest/message": 4,
+                            "subscriptionRequest/entityname": "{{csp_targetentity}}",
+                            "subscriptionRequest/scope": 4,
+                            "subscriptionRequest/filteringattributes": ""
+                        },
+                        "host": {
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                            "operationId": "SubscribeWebhookTrigger",
+                            "connectionName": "shared_commondataserviceforapps-1"
+                        }
+                    }
+                }
+            },
+            "actions": {
+                "Initialize_Prompt": {
+                    "type": "InitializeVariable",
+                    "inputs": {
+                        "variables": [
+                            {
+                                "name": "Prompt",
+                                "type": "string",
+                                "value": "{{prompt}}"
+                            }
+                        ]
+                    },
+                    "runAfter": {}
+                },
+                "List_rows_Is_Record_Included": {
+                    "type": "OpenApiConnection",
+                    "inputs": {
+                        "parameters": {
+                            "entityName": "{{csp_targetentityset}}",
+                            "fetchXml": "@variables('IsRecordIncludedQuery')"
+                        },
+                        "host": {
+                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                            "operationId": "ListRecords",
+                            "connectionName": "shared_commondataserviceforapps"
+                        }
+                    },
+                    "runAfter": {
+                        "Initialize_RelatedFetchXml": [
+                            "SUCCEEDED"
+                        ]
+                    }
+                },
+                "Initialize_IsRecordIncludedQuery": {
+                    "type": "InitializeVariable",
+                    "inputs": {
+                        "variables": [
+                            {
+                                "name": "IsRecordIncludedQuery",
+                                "type": "string",
+                                "value": "{{csp_fetchxml | replace: '"', '\"'}}"
+                            }
+                        ]
+                    },
+                    "runAfter": {
+                        "Initialize_Prompt": [
+                            "Succeeded"
+                        ]
+                    }
+                },
+                "Check_IsRecordIncluded": {
+                    "type": "If",
+                    "expression": {
+                        "and": [
+                            {
+                                "greater": [
+                                    "@length(outputs('List_rows_Is_Record_Included')?['body/value'])",
+                                    0
+                                ]
+                            }
+                        ]
+                    },
+                    "actions": {
+                        "Run_Prompt": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                                "parameters": {
+                                    "recordId": "98ce2773-0538-4017-bf93-601b01be21eb",
+                                    "item/requestv2/Input": "@outputs('Run_RelatedFetchXml')?['body/value']",
+                                    "item/requestv2/Prompt": "@variables('Prompt')"
+                                },
+                                "host": {
+                                    "apiId": "providers/Microsoft.ProcessSimple/operationGroups/aibuilder",
+                                    "operationId": "aibuilderpredict_customprompt",
+                                    "connectionName": "shared_commondataserviceforapps-1"
+                                }
+                            },
+                            "runAfter": {
+                                "Run_RelatedFetchXml": [
+                                    "SUCCEEDED"
+                                ]
+                            }
+                        },
+                        "Run_RelatedFetchXml": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                                "parameters": {
+                                    "entityName": "{{csp_targetentityset}}",
+                                    "fetchXml": "@replace(variables('RelatedFetchXml'),item()?['{{csp_targetentityidfield}}'])"
+                                },
+                                "host": {
+                                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                                    "operationId": "ListRecords",
+                                    "connectionName": "shared_commondataserviceforapps-1"
+                                }
+                            }
+                        },
+                        "Update_with_Summary": {
+                            "type": "OpenApiConnection",
+                            "inputs": {
+                                "parameters": {
+                                    "entityName": "{{csp_targetentityset}}",
+                                    "recordId": "@triggerOutputs()?['body/{{csp_targetentityidfield}}']",
+                                    "item/csp_aisummary": "@outputs('Run_Prompt')?['body/responsev2']"
+                                },
+                                "host": {
+                                    "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                                    "operationId": "UpdateOnlyRecord",
+                                    "connectionName": "shared_commondataserviceforapps"
+                                }
+                            },
+                            "runAfter": {
+                                "Run_Prompt": [
+                                    "SUCCEEDED"
+                                ]
+                            }
+                        }
+                    },
+                    "else": {
+                        "actions": {
+                            "Terminate": {
+                                "type": "Terminate",
+                                "inputs": {
+                                    "runStatus": "Succeeded"
+                                }
+                            }
+                        }
+                    },
+                    "runAfter": {
+                        "List_rows_Is_Record_Included": [
+                            "SUCCEEDED"
+                        ]
+                    }
+                },
+                "Initialize_RelatedFetchXml": {
+                    "type": "InitializeVariable",
+                    "inputs": {
+                        "variables": [
+                            {
+                                "name": "RelatedFetchXml",
+                                "type": "string",
+                                "value": "{{csp_relatedfetchxml | replace: '"', '\"'}}"
+                            }
+                        ]
+                    },
+                    "runAfter": {
+                        "Initialize_IsRecordIncludedQuery": [
+                            "SUCCEEDED"
+                        ]
+                    }
+                }
+            }
+        }
+    },
+    "schemaVersion": "1.0.0.0"
+}

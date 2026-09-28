@@ -1,0 +1,99 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_commondataserviceforapps-1": {
+        "api": {
+          "name": "shared_commondataserviceforapps"
+        },
+        "connection": {
+          "connectionReferenceLogicalName": "csp_sharedcommondataserviceforapps_27015"
+        },
+        "runtimeSource": "embedded"
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        }
+      },
+      "triggers": {
+        "manual": {
+          "type": "Request",
+          "kind": "Button",
+          "inputs": {
+            "schema": {
+              "type": "object",
+              "properties": {},
+              "required": []
+            }
+          },
+          "metadata": {
+            "operationMetadataId": "2ca5ee0d-546b-4856-9337-f850afe17bd4"
+          }
+        }
+      },
+      "actions": {
+        "Run_Prompt": {
+          "type": "OpenApiConnection",
+          "inputs": {
+            "parameters": {
+              "recordId": "98ce2773-0538-4017-bf93-601b01be21eb",
+              "item/requestv2/Input": "@variables('Parameters')",
+              "item/requestv2/Prompt": "@variables('Prompt')"
+            },
+            "host": {
+              "apiId": "providers/Microsoft.ProcessSimple/operationGroups/aibuilder",
+              "operationId": "aibuilderpredict_customprompt",
+              "connectionName": "shared_commondataserviceforapps-1"
+            }
+          },
+          "runAfter": {
+            "Initialize_Parameters": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Initialize_Prompt": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "Prompt",
+                "type": "string",
+                "value": "Please summarize the text below in a way that is easy to understand for a general audience. Make sure to include all important information, including main ideas and important details, while keeping the order of the content logical. Remove any repetitive elements to make the summary as concise as possible without losing the original text's integrity. If the original text is too short to condense, present it as the summary.\nText:"
+              }
+            ]
+          },
+          "runAfter": {}
+        },
+        "Initialize_Parameters": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "Parameters",
+                "type": "string",
+                "value": "When diversifying your investment portfolio, it's a good idea to explore alternative investment options in addition to traditional ones. Here are a few alternative investment options you might consider: Commodities: Investing in commodities involves trading in physical goods such as precious metals (gold, silver), energy resources (oil, natural gas), agricultural products (wheat, corn), or industrial metals (copper, aluminum). Commodities can provide a hedge against inflation and offer diversification benefits. Real Estate: Investing in real estate can be done through direct ownership of properties, real estate investment trusts (REITs), or real estate crowdfunding platforms. Real estate can generate rental income and potential capital appreciation over time. Peer-to-Peer Lending: Peer-to-peer lending platforms connect borrowers with lenders, bypassing traditional financial intermediaries like banks. By lending directly to individuals or small businesses, you can earn interest on your invested funds. However, it's important to carefully assess the risk associated with P2P lending and diversify across multiple loans. Venture Capital and Private Equity: These investments involve funding early-stage or established companies that are not publicly traded. Venture capital focuses on startups and high-growth companies, while private equity involves investing in established private companies. Both options carry higher risks but also offer potential high returns. Cryptocurrencies: Cryptocurrencies such as Bitcoin, Ethereum, or others have gained popularity as an alternative investment. However, they are highly volatile and come with significant risks. It's important to conduct thorough research and understand the technology and market dynamics before investing in cryptocurrencies. Art and Collectibles: Investing in art, antiques, or collectibles can provide diversification and the potential for appreciation over time. However, it requires expertise and knowledge in the specific market and can be illiquid. Remember, alternative investments often come with higher risks and may require more specialized knowledge compared to traditional investments. It's essential to thoroughly research and understand the specific risks, potential returns, liquidity, and regulatory considerations associated with any alternative investment before making decisions. Consulting with a financial advisor or investment professional is also advisable to ensure your investment choices align with your financial goals and risk tolerance."
+              }
+            ]
+          },
+          "runAfter": {
+            "Initialize_Prompt": [
+              "Succeeded"
+            ]
+          }
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}

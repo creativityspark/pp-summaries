@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<WebResource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <WebResourceId>{bc271cee-7bbb-f111-aaaf-7ced8d498108}</WebResourceId>
+  <Name>csp_/flowtemplates/run-summary.htm</Name>
+  <DisplayName>Summary Studio · run-summary flow template</DisplayName>
+  <WebResourceType>1</WebResourceType>
+  <IntroducedVersion>1.0.0.1</IntroducedVersion>
+  <IsEnabledForMobileClient>0</IsEnabledForMobileClient>
+  <IsAvailableForMobileOffline>0</IsAvailableForMobileOffline>
+  <IsCustomizable>1</IsCustomizable>
+  <CanBeDeleted>1</CanBeDeleted>
+  <IsHidden>0</IsHidden>
+  <FileName>/WebResources/csp_flowtemplatesrun-summaryhtmBC271CEE-7BBB-F111-AAAF-7CED8D498108</FileName>
+</WebResource>

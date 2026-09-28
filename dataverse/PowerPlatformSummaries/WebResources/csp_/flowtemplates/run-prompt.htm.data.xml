@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<WebResource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <WebResourceId>{faec8ff4-eda2-f111-b8db-002248a2a874}</WebResourceId>
+  <Name>csp_/flowtemplates/run-prompt.htm</Name>
+  <DisplayName>csp_/flowtemplates/run-prompt.htm</DisplayName>
+  <WebResourceType>1</WebResourceType>
+  <IntroducedVersion>1.0.0.0</IntroducedVersion>
+  <IsEnabledForMobileClient>0</IsEnabledForMobileClient>
+  <IsAvailableForMobileOffline>0</IsAvailableForMobileOffline>
+  <IsCustomizable>1</IsCustomizable>
+  <CanBeDeleted>1</CanBeDeleted>
+  <IsHidden>0</IsHidden>
+  <FileName>/WebResources/csp_flowtemplatesrun-prompthtmFAEC8FF4-EDA2-F111-B8DB-002248A2A874</FileName>
+</WebResource>
