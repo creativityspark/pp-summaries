@@ -1,9 +1,10 @@
 {
-  "name": "irish-summit-2026-dataverse-scripts",
+  "name": "summary-studio-dataverse-scripts",
   "private": true,
   "type": "module",
   "scripts": {
-    "create-tables": "node create-tables.mjs"
+    "inventory": "node inventory-solution.mjs",
+    "migrate": "node migrate-summary-studio.mjs"
   },
   "dependencies": {
     "@azure/msal-node": "^3.5.0"
