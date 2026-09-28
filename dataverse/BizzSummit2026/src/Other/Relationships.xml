@@ -1,2 +1,36 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<EntityRelationships xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" />
+<EntityRelationships xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <EntityRelationship Name="business_unit_csp_aiprompt" />
+  <EntityRelationship Name="business_unit_csp_aisummarycache" />
+  <EntityRelationship Name="business_unit_csp_aisummaryconfig" />
+  <EntityRelationship Name="business_unit_csp_aiusage" />
+  <EntityRelationship Name="csp_account_csp_aisummarycache_Account" />
+  <EntityRelationship Name="csp_account_csp_aiusage_Account" />
+  <EntityRelationship Name="csp_aisummaryconfig_processid_workflow" />
+  <EntityRelationship Name="csp_csp_aiprompt_csp_aisummarycache_Prompt" />
+  <EntityRelationship Name="csp_csp_aiprompt_csp_aisummaryconfig_Prompt" />
+  <EntityRelationship Name="csp_csp_aiprompt_csp_aiusage_PromptLookup" />
+  <EntityRelationship Name="csp_csp_aisummaryconfig_csp_aisummarycache_SummaryConfig" />
+  <EntityRelationship Name="csp_csp_aisummaryconfig_csp_aiusage_SummaryConfig" />
+  <EntityRelationship Name="csp_systemuser_csp_aiusage_User" />
+  <EntityRelationship Name="lk_csp_aiprompt_createdby" />
+  <EntityRelationship Name="lk_csp_aiprompt_modifiedby" />
+  <EntityRelationship Name="lk_csp_aisummarycache_createdby" />
+  <EntityRelationship Name="lk_csp_aisummarycache_modifiedby" />
+  <EntityRelationship Name="lk_csp_aisummaryconfig_createdby" />
+  <EntityRelationship Name="lk_csp_aisummaryconfig_modifiedby" />
+  <EntityRelationship Name="lk_csp_aiusage_createdby" />
+  <EntityRelationship Name="lk_csp_aiusage_modifiedby" />
+  <EntityRelationship Name="owner_csp_aiprompt" />
+  <EntityRelationship Name="owner_csp_aisummarycache" />
+  <EntityRelationship Name="owner_csp_aisummaryconfig" />
+  <EntityRelationship Name="owner_csp_aiusage" />
+  <EntityRelationship Name="team_csp_aiprompt" />
+  <EntityRelationship Name="team_csp_aisummarycache" />
+  <EntityRelationship Name="team_csp_aisummaryconfig" />
+  <EntityRelationship Name="team_csp_aiusage" />
+  <EntityRelationship Name="user_csp_aiprompt" />
+  <EntityRelationship Name="user_csp_aisummarycache" />
+  <EntityRelationship Name="user_csp_aisummaryconfig" />
+  <EntityRelationship Name="user_csp_aiusage" />
+</EntityRelationships>
