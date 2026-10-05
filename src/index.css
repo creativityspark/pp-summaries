@@ -595,6 +595,22 @@ code { font-family: var(--font-mono); }
 .summary-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; margin: 0; padding: 14px 16px 16px; font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; color: var(--foreground-2); }
 .summary-card.open .summary-text { display: block; -webkit-line-clamp: unset; }
 .prompt-library-content textarea { min-height: clamp(360px, calc(100dvh - 560px), 640px) !important; }
+.pane-search { flex: 0 0 auto; padding: 0 24px 12px; }
+.pane-search .fui-SearchBox { width: 100%; max-width: none; }
+.pane-count { margin-left: 8px; font-size: 11.5px; font-weight: 500; color: var(--faint-foreground); }
+.pane-empty { padding: 16px 0; font-size: 13px; color: var(--muted-foreground); }
+.edit-pane section > button:disabled { cursor: not-allowed; opacity: .55; }
+.related-column-search.fui-SearchBox { width: 100%; max-width: none; margin-top: 8px; }
+.related-column-list { display: flex; max-height: 240px; flex-wrap: wrap; align-content: flex-start; gap: 6px; overflow-y: auto; margin-top: 8px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--surface-2); padding: 8px; overscroll-behavior: contain; }
+.related-column-list > small { color: var(--muted-foreground); }
+.change-filter-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.change-filter-heading .field-caption { margin: 0; }
+.change-filter-empty { font-size: 12px; color: var(--muted-foreground); }
+.editable-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.editable-title h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editable-title .fui-Button { color: var(--muted-foreground); }
+.page-header > div:has(.title-input) { flex: 1 1 auto; }
+.title-input.fui-Input { width: 560px; max-width: 100%; margin-top: 4px; font-size: 20px; font-weight: 600; }
 .query-limit { margin-right: auto; }
 .query-limit label { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--muted-foreground); }
 .query-limit input { width: 88px !important; min-height: 32px !important; }

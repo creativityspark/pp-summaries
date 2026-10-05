@@ -33,6 +33,8 @@ export interface DataverseTableMetadata {
   entitySetName: string;
   primaryIdAttribute: string;
   displayName: string;
+  /** Singular display name ("Contact"), used in sentences such as "When a contact changes". */
+  singularName?: string;
   primaryNameAttribute?: string;
 }
 
@@ -85,11 +87,13 @@ export function mapDataverseTables(value: unknown): DataverseTableMetadata[] {
     const primaryIdAttribute = String(raw.PrimaryIdAttribute ?? raw.primaryIdAttribute ?? `${logicalName}id`);
     const displayName = localizedLabel(raw.DisplayCollectionName ?? raw.displayCollectionName) || logicalName;
     const primaryNameAttribute = raw.PrimaryNameAttribute ?? raw.primaryNameAttribute;
+    const singularName = localizedLabel(raw.DisplayName ?? raw.displayName);
     return {
       logicalName,
       entitySetName,
       primaryIdAttribute,
       displayName,
+      ...(singularName ? { singularName } : {}),
       ...(primaryNameAttribute ? { primaryNameAttribute: String(primaryNameAttribute) } : {}),
     };
   }).filter((table) => table.logicalName && table.entitySetName)
@@ -356,4 +360,10 @@ export function estimateRecipeTokens(input: {
   }, 0);
   const total = promptTokens + fieldTokens + relatedTokens + RESPONSE_TOKEN_ALLOWANCE;
   return Math.ceil(total / 10) * 10;
+}
+
+/** "a contact" / "an account": lower-cased singular table name with its article. */
+export function tableReference(table: Pick<DataverseTableMetadata, "logicalName" | "singularName" | "displayName"> | undefined, fallback: string) {
+  const name = (table?.singularName || table?.displayName || fallback || "record").trim().toLowerCase();
+  return `${/^[aeiou]/.test(name) ? "an" : "a"} ${name}`;
 }

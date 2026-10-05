@@ -74,6 +74,7 @@ import {
 import { ErrorCircle20Regular as ErrorCircle } from "@fluentui/react-icons/svg/error-circle";
 import { MoreHorizontal20Regular as More } from "@fluentui/react-icons/svg/more-horizontal";
 import { Open20Regular as OpenIcon } from "@fluentui/react-icons/svg/open";
+import { Edit20Regular as EditIcon } from "@fluentui/react-icons/svg/edit";
 import { Warning20Regular as Warning } from "@fluentui/react-icons/svg/warning";
 import { Database20Regular as Database } from "@fluentui/react-icons/svg/database";
 import { Dismiss20Regular as Dismiss } from "@fluentui/react-icons/svg/dismiss";
@@ -112,6 +113,7 @@ import {
   buildRecordSelectionFetchXml,
   compileRecipe,
   estimateRecipeTokens,
+  tableReference,
   getTargetEntityIdentity,
   validateSummaryConfiguration,
   type SummaryConfigurationDraft,
@@ -634,22 +636,81 @@ function formatRelativeDate(value: string) {
   );
 }
 
+function EditableTitle({
+  value,
+  saving,
+  onSave,
+}: {
+  value: string;
+  saving: boolean;
+  onSave: (name: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(value);
+  const commit = () => {
+    const next = name.trim();
+    setEditing(false);
+    if (next && next !== value) onSave(next);
+    else setName(value);
+  };
+  if (editing) {
+    return (
+      <Input
+        className="title-input"
+        aria-label="Configuration name"
+        value={name}
+        autoFocus
+        onChange={(event) => setName(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") commit();
+          if (event.key === "Escape") {
+            setName(value);
+            setEditing(false);
+          }
+        }}
+      />
+    );
+  }
+  return (
+    <div className="editable-title">
+      <h1>{value}</h1>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label="Rename configuration"
+        title="Rename configuration"
+        disabled={saving}
+        onClick={() => {
+          setName(value);
+          setEditing(true);
+        }}
+      >
+        <EditIcon />
+      </Button>
+    </div>
+  );
+}
+
 function PageHeader({
   eyebrow,
   title,
   description,
   actions,
+  titleSlot,
 }: {
   eyebrow: string;
   title: string;
   description: string;
   actions?: ReactNode;
+  titleSlot?: ReactNode;
 }) {
   return (
     <div className="page-header">
       <div>
         <p className="micro-label text-brand-blue">{eyebrow}</p>
-        <h1>{title}</h1>
+        {titleSlot ?? <h1>{title}</h1>}
         <p>{description}</p>
       </div>
       {actions && (
@@ -1068,6 +1129,7 @@ type PaneKind =
   | "prompt"
   | "model"
   | "fields"
+  | "triggerColumns"
   | "records"
   | "relationships"
   | "contextQuery"
@@ -1112,7 +1174,9 @@ function draftFromConfiguration(
     inputMappings: config?.inputMappings ?? {},
     triggerColumns: config?.triggerColumns.length
       ? config.triggerColumns
-      : ["name", "revenue", "description", "primarycontactid"],
+      : sourceFields.filter(
+          (field) => field !== (config?.outputField ?? "csp_aisummary"),
+        ),
     triggerType: "dataverse.update",
     preserveHistory: false,
     saveMetadata: true,
@@ -1986,7 +2050,15 @@ function DestinationStep({
   );
 }
 
-function triggerPresentation(type: string, columns: string[]) {
+function useTableReference(entity: string) {
+  const tables = useDataverseTables();
+  return tableReference(
+    tables.data?.find((table) => table.logicalName === entity),
+    entity,
+  );
+}
+
+function triggerPresentation(type: string, columns: string[], tableRef = "a record") {
   if (type === "schedule.daily")
     return {
       label: "Daily schedule",
@@ -2000,14 +2072,17 @@ function triggerPresentation(type: string, columns: string[]) {
       pattern: "On demand",
     };
   return {
-    label: "When an account changes",
-    detail: columns.slice(0, 3).join(", "),
+    label: `When ${tableRef} changes`,
+    detail: columns.length
+      ? columns.slice(0, 3).join(", ") + (columns.length > 3 ? ` +${columns.length - 3}` : "")
+      : "No trigger columns",
     pattern: "Dataverse event",
   };
 }
 
 function FlowDiagram({ draft }: { draft: BuilderDraft }) {
-  const trigger = triggerPresentation(draft.triggerType, draft.triggerColumns);
+  const tableRef = useTableReference(draft.entity);
+  const trigger = triggerPresentation(draft.triggerType, draft.triggerColumns, tableRef);
   return (
     <div className="generated-flow">
       <div className="flow-node trigger">
@@ -2062,11 +2137,14 @@ function FlowDiagram({ draft }: { draft: BuilderDraft }) {
 function ExecutionStep({
   draft,
   onChange,
+  onEdit,
 }: {
   draft: BuilderDraft;
   onChange: (changes: Partial<BuilderDraft>) => void;
+  onEdit: (pane: PaneKind) => void;
 }) {
-  const trigger = triggerPresentation(draft.triggerType, draft.triggerColumns);
+  const tableRef = useTableReference(draft.entity);
+  const trigger = triggerPresentation(draft.triggerType, draft.triggerColumns, tableRef);
   return (
     <div className="editor-section">
       <SectionIntro
@@ -2077,7 +2155,7 @@ function ExecutionStep({
       <div className="trigger-options">
         <button
           type="button"
-          aria-label="When an account changes"
+          aria-label={trigger.label}
           aria-pressed={draft.triggerType === "dataverse.update"}
           className={draft.triggerType === "dataverse.update" ? "selected" : ""}
           onClick={() => onChange({ triggerType: "dataverse.update" })}
@@ -2086,8 +2164,8 @@ function ExecutionStep({
             <GitBranch />
           </span>
           <div>
-            <b>When an account changes</b>
-            <small>Only when a field used by the context changes.</small>
+            <b>{triggerPresentation("dataverse.update", [], tableRef).label}</b>
+            <small>Only when one of the selected trigger columns changes.</small>
           </div>
           {draft.triggerType === "dataverse.update" && <Check />}
         </button>
@@ -2126,11 +2204,29 @@ function ExecutionStep({
       </div>
       <div className="change-filter">
         <div>
-          <p className="field-caption">Trigger columns</p>
+          <div className="change-filter-heading">
+            <p className="field-caption">Trigger columns</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label="Edit trigger columns"
+              disabled={draft.triggerType !== "dataverse.update"}
+              onClick={() => onEdit("triggerColumns")}
+            >
+              Edit columns
+            </Button>
+          </div>
           <div>
             {draft.triggerColumns.map((x) => (
               <span key={x}>{x}</span>
             ))}
+            {draft.triggerColumns.length === 0 && (
+              <small className="change-filter-empty">
+                No trigger columns yet. Select the columns whose changes should
+                regenerate the summary.
+              </small>
+            )}
           </div>
         </div>
         <aside>
@@ -2162,7 +2258,8 @@ function ReviewStep({
   draft: BuilderDraft;
   validationErrors: string[];
 }) {
-  const trigger = triggerPresentation(draft.triggerType, draft.triggerColumns);
+  const tableRef = useTableReference(draft.entity);
+  const trigger = triggerPresentation(draft.triggerType, draft.triggerColumns, tableRef);
   const relatedEntities = draft.relationships
     .map((relationship) => String(relationship.entity ?? ""))
     .filter(Boolean);
@@ -2597,6 +2694,13 @@ const paneContent: Record<
     technical: "Dataverse metadata",
     options: [],
   },
+  triggerColumns: {
+    title: "Trigger columns",
+    eyebrow: "Execution",
+    value: "Trigger columns",
+    technical: "csp_triggercolumns",
+    options: [],
+  },
   records: {
     title: "Records to process",
     eyebrow: "Record selection",
@@ -2752,18 +2856,42 @@ function FieldsPane({
   selectedFields,
   onClose,
   onApply,
+  title = "Source columns",
+  ariaLabel = "Choose source columns",
+  caption = "Readable columns",
+  excluded = [],
+  excludedReason = "",
 }: {
   entity: string;
   entitySetName: string;
   selectedFields: string[];
   onClose: () => void;
   onApply: (fields: string[]) => void;
+  title?: string;
+  ariaLabel?: string;
+  caption?: string;
+  excluded?: string[];
+  excludedReason?: string;
 }) {
   const { data: columns = [], isLoading } = useDataverseColumns(
     entity,
     entitySetName,
   );
   const [selected, setSelected] = useState(selectedFields);
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLowerCase();
+  const visibleColumns = columns
+    .filter((column) => column.readable)
+    .filter(
+      (column) =>
+        !query ||
+        `${column.displayName} ${column.logicalName}`.toLowerCase().includes(query),
+    )
+    .sort((a, b) => {
+      const aSelected = selectedFields.includes(a.logicalName);
+      const bSelected = selectedFields.includes(b.logicalName);
+      return aSelected === bSelected ? 0 : aSelected ? -1 : 1;
+    });
   const toggle = (field: string) =>
     setSelected((current) =>
       current.includes(field)
@@ -2778,11 +2906,11 @@ function FieldsPane({
         aria-label="Close edit pane"
         onClick={onClose}
       />
-      <aside className="edit-pane" aria-label="Choose source columns">
+      <aside className="edit-pane" aria-label={ariaLabel}>
         <header>
           <div>
             <p className="micro-label text-brand-blue">Dataverse metadata</p>
-            <h2>Source columns</h2>
+            <h2>{title}</h2>
           </div>
           <Button type="button" variant="ghost" size="icon" aria-label="Close pane" onClick={onClose}>
             <Dismiss />
@@ -2798,34 +2926,53 @@ function FieldsPane({
             <code>{entity}</code>
           </div>
         </div>
+        <div className="pane-search">
+          <SearchBox
+            aria-label="Search columns"
+            placeholder="Search display or logical name"
+            value={search}
+            onChange={(_, data) => setSearch(data.value)}
+          />
+        </div>
         <section>
-          <p className="field-caption">Readable columns</p>
+          <p className="field-caption">
+            {caption}
+            {!isLoading && (
+              <small className="pane-count">
+                {visibleColumns.length} shown · {selected.length} selected
+              </small>
+            )}
+          </p>
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Loading columns…</p>
+          ) : visibleColumns.length === 0 ? (
+            <p className="pane-empty">No columns match “{search}”.</p>
           ) : (
-            columns
-              .filter((column) => column.readable)
-              .map((column) => {
-                const active = selected.includes(column.logicalName);
-                return (
-                  <button
-                    type="button"
-                    key={column.logicalName}
-                    aria-label={`${column.displayName} · ${column.logicalName}`}
-                    aria-pressed={active}
-                    onClick={() => toggle(column.logicalName)}
-                    className={active ? "selected" : ""}
-                  >
-                    <span>{active ? <Check /> : null}</span>
-                    <div>
-                      <b>{column.displayName}</b>
-                      <code>
-                        {column.logicalName} · {column.type}
-                      </code>
-                    </div>
-                  </button>
-                );
-              })
+            visibleColumns.map((column) => {
+              const active = selected.includes(column.logicalName);
+              const blocked = excluded.includes(column.logicalName);
+              return (
+                <button
+                  type="button"
+                  key={column.logicalName}
+                  aria-label={`${column.displayName} · ${column.logicalName}`}
+                  aria-pressed={active}
+                  disabled={blocked}
+                  title={blocked ? excludedReason : undefined}
+                  onClick={() => toggle(column.logicalName)}
+                  className={active ? "selected" : ""}
+                >
+                  <span>{active ? <Check /> : null}</span>
+                  <div>
+                    <b>{column.displayName}</b>
+                    <code>
+                      {column.logicalName} · {column.type}
+                      {blocked ? ` · ${excludedReason}` : ""}
+                    </code>
+                  </div>
+                </button>
+              );
+            })
           )}
         </section>
         <footer>
@@ -3026,6 +3173,7 @@ function QueryDesignerPane({
     effectiveEntity,
     effectiveEntitySet,
   );
+  const [relatedSearch, setRelatedSearch] = useState("");
   const systemViews = useSystemViews(effectiveEntity);
   const userViews = useUserViews(effectiveEntity);
   const preview = useDataverseRecordPreview();
@@ -3140,13 +3288,39 @@ function QueryDesignerPane({
               </select>
             </label>
             <div>
-              <p className="field-caption">Columns passed to the prompt</p>
-              <div className="mt-2 flex flex-wrap gap-2">
+              <p className="field-caption">
+                Columns passed to the prompt
+                <small className="pane-count">
+                  {effectiveRelatedFields.length} selected
+                </small>
+              </p>
+              <SearchBox
+                className="related-column-search"
+                aria-label="Search related columns"
+                placeholder="Search display or logical name"
+                value={relatedSearch}
+                onChange={(_, data) => setRelatedSearch(data.value)}
+              />
+              <div className="related-column-list">
                 {relatedColumns.isLoading ? (
                   <small>Loading columns…</small>
+                ) : (relatedColumns.data ?? []).filter((column) => column.readable).length === 0 ? (
+                  <small>No readable columns were found for this table.</small>
                 ) : (
                   (relatedColumns.data ?? [])
                     .filter((column) => column.readable)
+                    .filter(
+                      (column) =>
+                        !relatedSearch.trim() ||
+                        `${column.displayName} ${column.logicalName}`
+                          .toLowerCase()
+                          .includes(relatedSearch.trim().toLowerCase()),
+                    )
+                    .sort((a, b) => {
+                      const aActive = effectiveRelatedFields.includes(a.logicalName);
+                      const bActive = effectiveRelatedFields.includes(b.logicalName);
+                      return aActive === bActive ? 0 : aActive ? -1 : 1;
+                    })
                     .map((column) => {
                       const active = effectiveRelatedFields.includes(
                         column.logicalName,
@@ -3903,7 +4077,7 @@ function Builder() {
       savingPrompt={updatePrompt.isPending}
     />,
     <DestinationStep draft={draft} onEdit={setPane} onChange={updateDraft} />,
-    <ExecutionStep draft={draft} onChange={updateDraft} />,
+    <ExecutionStep draft={draft} onChange={updateDraft} onEdit={setPane} />,
     <ReviewStep draft={draft} validationErrors={validationErrors} />,
   ][step];
   return (
@@ -3916,6 +4090,18 @@ function Builder() {
               : "New configuration · not saved yet"
           }
           title={draft.name}
+          titleSlot={
+            <EditableTitle
+              key={draft.name}
+              value={draft.name}
+              saving={
+                updateConfiguration.isPending ||
+                createConfiguration.isPending ||
+                (!isNew && !configuration)
+              }
+              onSave={(name) => save({ ...draft, name }, { csp_name: name })}
+            />
+          }
           description=""
           actions={
             <>
@@ -4077,6 +4263,29 @@ function Builder() {
             selectedFields={draft.sourceFields}
             onClose={() => setPane(null)}
             onApply={(fields) => updateDraft({ sourceFields: fields })}
+          />
+        ) : pane === "triggerColumns" ? (
+          <FieldsPane
+            title="Trigger columns"
+            ariaLabel="Choose trigger columns"
+            caption="Columns that regenerate the summary when they change"
+            entity={draft.entity}
+            entitySetName={
+              draft.entitySetName ||
+              getTargetEntityIdentity(draft.entity).entitySet
+            }
+            selectedFields={draft.triggerColumns}
+            excluded={draft.outputEntity === draft.entity ? [draft.outputField] : []}
+            excludedReason="output column, excluded to prevent loops"
+            onClose={() => setPane(null)}
+            onApply={(fields) =>
+              updateDraft({
+                triggerColumns: fields.filter(
+                  (field) =>
+                    !(draft.outputEntity === draft.entity && field === draft.outputField),
+                ),
+              })
+            }
           />
         ) : pane === "records" ? (
           <QueryDesignerPane

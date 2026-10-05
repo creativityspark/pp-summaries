@@ -30,7 +30,7 @@ const client = getClient(dataSourcesInfo);
  * the path template.
  */
 const NATIVE_DATA_SOURCE = "accounts";
-const ENTITY_SELECT = "LogicalName,EntitySetName,PrimaryIdAttribute,PrimaryNameAttribute,DisplayCollectionName";
+const ENTITY_SELECT = "LogicalName,EntitySetName,PrimaryIdAttribute,PrimaryNameAttribute,DisplayName,DisplayCollectionName";
 const ENTITY_EXPAND =
   "Attributes($select=LogicalName,DisplayName,AttributeType,IsValidForRead,IsValidForUpdate)," +
   "OneToManyRelationships($select=SchemaName,ReferencedEntity,ReferencedAttribute,ReferencingEntity,ReferencingAttribute)," +
@@ -100,10 +100,10 @@ export async function dataverseGet(operationName: keyof typeof nativeApis, body:
 }
 
 const fallbackTables: DataverseTableMetadata[] = [
-  { logicalName: "account", entitySetName: "accounts", primaryIdAttribute: "accountid", displayName: "Accounts", primaryNameAttribute: "name" },
-  { logicalName: "contact", entitySetName: "contacts", primaryIdAttribute: "contactid", displayName: "Contacts", primaryNameAttribute: "fullname" },
-  { logicalName: "incident", entitySetName: "incidents", primaryIdAttribute: "incidentid", displayName: "Cases", primaryNameAttribute: "title" },
-  { logicalName: "opportunity", entitySetName: "opportunities", primaryIdAttribute: "opportunityid", displayName: "Opportunities", primaryNameAttribute: "name" },
+  { logicalName: "account", entitySetName: "accounts", primaryIdAttribute: "accountid", displayName: "Accounts", singularName: "Account", primaryNameAttribute: "name" },
+  { logicalName: "contact", entitySetName: "contacts", primaryIdAttribute: "contactid", displayName: "Contacts", singularName: "Contact", primaryNameAttribute: "fullname" },
+  { logicalName: "incident", entitySetName: "incidents", primaryIdAttribute: "incidentid", displayName: "Cases", singularName: "Case", primaryNameAttribute: "title" },
+  { logicalName: "opportunity", entitySetName: "opportunities", primaryIdAttribute: "opportunityid", displayName: "Opportunities", singularName: "Opportunity", primaryNameAttribute: "name" },
 ].sort((a, b) => a.displayName.localeCompare(b.displayName));
 
 const fallbackColumns: Record<string, DataverseColumnMetadata[]> = {

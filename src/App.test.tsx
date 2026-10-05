@@ -696,4 +696,54 @@ describe("Creativity Spark Summary Studio", () => {
     ).toBeInTheDocument();
     fireEvent.click(within(dialog).getByText("Cancel"));
   });
+
+  it("filters source columns with a search box", async () => {
+    renderRoute("/configurations/account-operations");
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Configure source fields" }),
+    );
+    const pane = await screen.findByRole("complementary", {
+      name: "Choose source columns",
+    });
+    fireEvent.change(within(pane).getByLabelText("Search columns"), {
+      target: { value: "revenue" },
+    });
+    expect(
+      within(pane).getByRole("button", { name: /Annual Revenue · revenue/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(pane).queryByRole("button", { name: /Account Name · name/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("edits trigger columns and names the trigger after the source table", async () => {
+    renderRoute("/configurations/account-operations");
+
+    await screen.findByRole("heading", { name: "Account operations summary" });
+    fireEvent.click(screen.getByRole("button", { name: /Execution/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit trigger columns" }));
+    const pane = await screen.findByRole("complementary", {
+      name: "Choose trigger columns",
+    });
+    expect(
+      await within(pane).findByRole("button", { name: /AI Summary · csp_aisummary/ }),
+    ).toBeDisabled();
+    fireEvent.click(within(pane).getByRole("button", { name: /Industry · industrycode/ }));
+    fireEvent.click(within(pane).getByRole("button", { name: "Apply changes" }));
+    expect(await screen.findByText("industrycode")).toBeInTheDocument();
+  });
+
+  it("renames the configuration from the editor header", async () => {
+    renderRoute("/configurations/account-operations");
+
+    await screen.findByRole("heading", { name: "Account operations summary" });
+    fireEvent.click(screen.getByRole("button", { name: "Rename configuration" }));
+    const input = screen.getByLabelText("Configuration name");
+    fireEvent.change(input, { target: { value: "Weekly account briefing" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(
+      await screen.findByRole("heading", { name: "Weekly account briefing" }),
+    ).toBeInTheDocument();
+  });
 });
