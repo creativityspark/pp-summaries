@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "appId": "426b4d2f-86ea-4a0c-8783-37eb7ef82000",
-  "appDisplayName": "Irish Summit 2026 · Summary Studio",
+  "appDisplayName": "Summary Studio",
   "region": "prod",
   "environmentId": "bfcc8952-1b0c-e1a1-8464-c5b03ac4284c",
   "description": "Configurable AI summarisation framework for Dataverse",
