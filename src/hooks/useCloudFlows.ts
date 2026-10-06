@@ -108,7 +108,7 @@ export function relatedCloudFlows(
 }
 
 /** Unique name of the Power Platform solution that holds the studio tables and generated flows. */
-export const STUDIO_SOLUTION_UNIQUE_NAME = "BizzSummit2026";
+export const STUDIO_SOLUTION_UNIQUE_NAME = "SummaryStudio";
 
 export interface StudioSolution {
   id: string;
