@@ -307,4 +307,23 @@ describe("summary configuration persistence", () => {
     expect(withRelated).toBeGreaterThan(withFields);
     expect(withRelated % 10).toBe(0);
   });
+
+  it("keeps every filter, nested link, and order of a configured related query", () => {
+    const configured = `<fetch top="5"><entity name="activitypointer"><all-attributes />
+      <filter type="and"><condition attribute="statecode" operator="eq" value="0" /><filter type="or"><condition attribute="prioritycode" operator="eq" value="2" /><condition attribute="activitytypecode" operator="eq" value="task" /></filter></filter>
+      <order attribute="createdon" descending="true" /></entity></fetch>`;
+    const context = buildContextFetchXml("contact", ["fullname"], [{
+      entity: "activitypointer",
+      fromAttribute: "regardingobjectid",
+      toAttribute: "contactid",
+      fields: ["subject"],
+      fetchXml: configured,
+    }], "contactid");
+
+    expect(context).toContain('<condition attribute="statecode" operator="eq" value="0"');
+    expect(context).toContain('<filter type="or">');
+    expect(context).toContain('<condition attribute="prioritycode" operator="eq" value="2"');
+    expect(context).toContain('<order attribute="createdon" descending="true"');
+    expect(context).not.toContain("last-x-days");
+  });
 });

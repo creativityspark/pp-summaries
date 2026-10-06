@@ -207,6 +207,30 @@ export function buildRecordSelectionFetchXml(entity: string, maxRecords: number,
   return `<fetch top="${maxRecords}"><entity name="${entity}"><attribute name="${primaryId}" /></entity></fetch>`;
 }
 
+const NON_QUERYABLE_TYPES = new Set(["PartyList", "CalendarRules", "ManagedProperty", "File"]);
+
+/** Columns that can be read and requested in FetchXML. */
+export function isQueryableColumn(column: Pick<DataverseColumnMetadata, "readable" | "type">) {
+  return column.readable && !NON_QUERYABLE_TYPES.has(column.type);
+}
+
+/**
+ * Filters, orders and nested links of a related-record query, ready to be
+ * placed inside a link-entity. Returns null when the query cannot be parsed.
+ */
+export function extractRelatedQueryParts(fetchXml: string): { filters: string; orders: string; links: string } | null {
+  if (!fetchXml.trim() || typeof DOMParser === "undefined") return null;
+  const doc = new DOMParser().parseFromString(fetchXml, "application/xml");
+  if (doc.getElementsByTagName("parsererror").length) return null;
+  const entity = doc.getElementsByTagName("entity")[0];
+  if (!entity) return null;
+  const serializer = new XMLSerializer();
+  const children = Array.from(entity.children);
+  const pick = (tag: string) =>
+    children.filter((node) => node.tagName === tag).map((node) => serializer.serializeToString(node)).join("");
+  return { filters: pick("filter"), orders: pick("order"), links: pick("link-entity") };
+}
+
 export function buildContextFetchXml(
   entity: string,
   fields: string[],
@@ -227,10 +251,14 @@ export function buildContextFetchXml(
       : ["activityid", "subject", "description"];
     const relatedAttributes = relatedFields.map((field) => `<attribute name="${field}" />`).join("");
     const configuredQuery = String(relationship.fetchXml ?? "");
-    const configuredFilter = configuredQuery.match(/<filter\b[\s\S]*?<\/filter>/i)?.[0];
-    const configuredOrder = configuredQuery.match(/<order\b[^>]*\/?\s*>/i)?.[0] ?? "";
-    const relatedFilter = configuredFilter ?? `<filter><condition attribute="createdon" operator="last-x-days" value="${windowDays}" /></filter>`;
-    return `<link-entity name="${relatedEntity}" from="${from}" to="${to}" alias="related${index + 1}" link-type="outer">${relatedAttributes}${relatedFilter}${configuredOrder}</link-entity>`;
+    const parts = extractRelatedQueryParts(configuredQuery);
+    const defaultFilter = `<filter><condition attribute="createdon" operator="last-x-days" value="${windowDays}" /></filter>`;
+    // A configured related query is used as written: all its filters, nested
+    // links, and ordering. The default window only applies when none exists.
+    const relatedFilter = parts ? parts.filters : defaultFilter;
+    const relatedOrder = parts ? parts.orders : "";
+    const relatedLinks = parts ? parts.links : "";
+    return `<link-entity name="${relatedEntity}" from="${from}" to="${to}" alias="related${index + 1}" link-type="outer">${relatedAttributes}${relatedFilter}${relatedLinks}${relatedOrder}</link-entity>`;
   }).join("");
   return `<fetch><entity name="${entity}">${attributes}<filter><condition attribute="${primaryId}" operator="eq" value="{{recordId}}" /></filter>${links}</entity></fetch>`;
 }

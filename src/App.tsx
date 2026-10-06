@@ -113,6 +113,7 @@ import {
   buildRecordSelectionFetchXml,
   compileRecipe,
   estimateRecipeTokens,
+  isQueryableColumn,
   tableReference,
   getTargetEntityIdentity,
   validateSummaryConfiguration,
@@ -152,6 +153,7 @@ import {
 import { useSystemViews } from "@/hooks/useSystemViews";
 import { useUserViews } from "@/hooks/useUserViews";
 import {
+  runFetchXml,
   useDataverseColumns,
   useDataverseRecordPreview,
   useDataverseRelationships,
@@ -2893,11 +2895,21 @@ function FieldsPane({
     entity,
     entitySetName,
   );
-  const [selected, setSelected] = useState(selectedFields);
+  const [chosen, setSelected] = useState(selectedFields);
   const [search, setSearch] = useState("");
   const query = search.trim().toLowerCase();
+  const knownColumns = new Set(columns.map((column) => column.logicalName));
+  const metadataLoaded = !isLoading && columns.length > 0;
+  // Columns that do not exist in this table (for example, left over from a
+  // previously selected table) are dropped instead of being saved silently.
+  const staleSelections = metadataLoaded
+    ? chosen.filter((field) => !knownColumns.has(field))
+    : [];
+  const selected = metadataLoaded
+    ? chosen.filter((field) => knownColumns.has(field) && !excluded.includes(field))
+    : chosen;
   const visibleColumns = columns
-    .filter((column) => column.readable)
+    .filter(isQueryableColumn)
     .filter(
       (column) =>
         !query ||
@@ -2959,6 +2971,13 @@ function FieldsPane({
               </small>
             )}
           </p>
+          {staleSelections.length > 0 && (
+            <p className="pane-notice">
+              Removed {staleSelections.length} column
+              {staleSelections.length === 1 ? "" : "s"} that do not exist in{" "}
+              <code>{entity}</code>: {staleSelections.join(", ")}.
+            </p>
+          )}
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Loading columns…</p>
           ) : visibleColumns.length === 0 ? (
@@ -3320,11 +3339,11 @@ function QueryDesignerPane({
               <div className="related-column-list">
                 {relatedColumns.isLoading ? (
                   <small>Loading columns…</small>
-                ) : (relatedColumns.data ?? []).filter((column) => column.readable).length === 0 ? (
+                ) : (relatedColumns.data ?? []).filter(isQueryableColumn).length === 0 ? (
                   <small>No readable columns were found for this table.</small>
                 ) : (
                   (relatedColumns.data ?? [])
-                    .filter((column) => column.readable)
+                    .filter(isQueryableColumn)
                     .filter(
                       (column) =>
                         !relatedSearch.trim() ||
@@ -4052,8 +4071,44 @@ function Builder() {
     setDraft((current) => ({ ...current, promptContent: content }));
     notify("success", "Prompt saved", `"${draft.promptName}" was updated in Dataverse.`);
   };
+  const sourceColumns = useDataverseColumns(
+    draft.entity,
+    draft.entitySetName || getTargetEntityIdentity(draft.entity).entitySet,
+  );
+  const columnErrors = () => {
+    const known = new Set((sourceColumns.data ?? []).map((column) => column.logicalName));
+    if (!known.size) return [];
+    const errors: string[] = [];
+    const missingSource = draft.sourceFields.filter((field) => !known.has(field));
+    const missingTrigger = draft.triggerColumns.filter((field) => !known.has(field));
+    if (missingSource.length)
+      errors.push(`Source fields not found in ${draft.entity}: ${missingSource.join(", ")}.`);
+    if (missingTrigger.length)
+      errors.push(`Trigger columns not found in ${draft.entity}: ${missingTrigger.join(", ")}.`);
+    return errors;
+  };
+  const probeQueries = async () => {
+    if (!data?.live) return [];
+    const entitySet = draft.entitySetName || getTargetEntityIdentity(draft.entity).entitySet;
+    const errors: string[] = [];
+    for (const [label, fetchXml] of [
+      ["Record selection", draft.fetchXml],
+      ["Context query", draft.relatedFetchXml.replace("{{recordId}}", "00000000-0000-0000-0000-000000000000")],
+    ] as const) {
+      try {
+        await runFetchXml(entitySet, fetchXml, 1);
+      } catch (error) {
+        errors.push(`${label} is not valid in Dataverse: ${errorMessage(error, "unknown error")}`);
+      }
+    }
+    return errors;
+  };
   const publish = async () => {
-    const errors = validateSummaryConfiguration(draft);
+    const errors = [
+      ...validateSummaryConfiguration(draft),
+      ...columnErrors(),
+      ...(await probeQueries()),
+    ];
     setValidationErrors(errors);
     if (errors.length) {
       setStep(4);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -14,7 +14,9 @@ import {
   Wand2,
   X,
 } from "lucide-react";
-import { useEntityAttributes, type EntityAttribute } from "@/hooks/useEntityAttributes";
+import type { EntityAttribute } from "@/hooks/useEntityAttributes";
+import { useDataverseColumns } from "@/hooks/useDataverseCatalog";
+import { getTargetEntityIdentity, isQueryableColumn } from "@/lib/summaryConfiguration";
 import {
   bucketFor,
   buildFetchXml,
@@ -72,45 +74,32 @@ function AttributeCombobox({
   onChange,
   loading,
   id,
+  placeholder = "Pick a column…",
 }: {
   value: string;
   attributes: EntityAttribute[];
   onChange: (logicalName: string) => void;
   loading: boolean;
   id: string;
+  placeholder?: string;
 }) {
-  // We use a datalist so users get autocomplete but can still type any
-  // attribute (including custom columns the metadata might not return).
-  const visible = attributes.filter((a) => !a.isSystem);
-  const hidden = attributes.filter((a) => a.isSystem);
+  const known = attributes.some((a) => a.logicalName === value);
   return (
-    <>
-      <input
-        list={id}
-        value={value}
-        onChange={(e) => onChange(e.target.value.trim())}
-        placeholder={loading ? "Loading…" : "Pick an attribute…"}
-        spellCheck={false}
-        className="h-8 w-full rounded-md border border-border bg-background px-2.5 font-mono text-[11px] text-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
-      />
-      <datalist id={id}>
-        {visible.map((a) => (
-          <option key={a.logicalName} value={a.logicalName}>
-            {a.displayName} · {a.rawType}
-          </option>
-        ))}
-        {hidden.length > 0 && (
-          <option disabled value="">
-            — system fields below —
-          </option>
-        )}
-        {hidden.map((a) => (
-          <option key={a.logicalName} value={a.logicalName}>
-            {a.displayName} · {a.rawType}
-          </option>
-        ))}
-      </datalist>
-    </>
+    <select
+      id={id}
+      aria-label="Column"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-8 w-full rounded-md border border-border bg-background px-2 text-[12px] text-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+    >
+      <option value="">{loading ? "Loading columns…" : placeholder}</option>
+      {value && !known && <option value={value}>{value} (not in this table)</option>}
+      {attributes.map((a) => (
+        <option key={a.logicalName} value={a.logicalName}>
+          {a.displayName} · {a.logicalName}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -224,33 +213,65 @@ export function VisualFilterBuilder({
     setState(emptyBuilderState(targetEntity));
   }
 
-  const attributesQuery = useEntityAttributes(targetEntity);
-  const attributes = attributesQuery.data ?? [];
+  const attributesQuery = useDataverseColumns(
+    targetEntity,
+    getTargetEntityIdentity(targetEntity).entitySet,
+  );
+  const attributes = useMemo<EntityAttribute[]>(
+    () =>
+      (attributesQuery.data ?? [])
+        .filter(isQueryableColumn)
+        .map((column) => ({
+          logicalName: column.logicalName,
+          displayName: column.displayName,
+          rawType: column.type,
+          bucket: bucketFor(column.type),
+          isSystem: false,
+        })),
+    [attributesQuery.data],
+  );
   const livePreviewXml = useMemo(() => buildFetchXml(state), [state]);
+
+  // Every edit is pushed to the parent so the query is never lost when the
+  // pane is applied without pressing "Use this FetchXML". The first render is
+  // skipped so opening the tab does not overwrite an existing query.
+  const touched = useRef(false);
+  const onGenerateRef = useRef(onGenerate);
+  useEffect(() => {
+    onGenerateRef.current = onGenerate;
+  });
+  useEffect(() => {
+    if (!touched.current) return;
+    onGenerateRef.current(livePreviewXml, state);
+  }, [livePreviewXml, state]);
+  const edit = (update: (s: FetchXmlBuilderState) => FetchXmlBuilderState) => {
+    touched.current = true;
+    setState(update);
+  };
 
   function patch<K extends keyof FetchXmlBuilderState>(
     key: K,
     value: FetchXmlBuilderState[K]
   ) {
-    setState((s) => ({ ...s, [key]: value }));
+    edit((s) => ({ ...s, [key]: value }));
   }
 
   function updateCondition(i: number, next: FilterCondition) {
-    setState((s) => ({
+    edit((s) => ({
       ...s,
       conditions: s.conditions.map((c, idx) => (idx === i ? next : c)),
     }));
   }
 
   function removeCondition(i: number) {
-    setState((s) => ({
+    edit((s) => ({
       ...s,
       conditions: s.conditions.filter((_, idx) => idx !== i),
     }));
   }
 
   function addCondition() {
-    setState((s) => ({
+    edit((s) => ({
       ...s,
       conditions: [...s.conditions, { attribute: "", operator: "eq", value: "" }],
     }));
@@ -274,12 +295,11 @@ export function VisualFilterBuilder({
 
       {targetEntity && attributes.length === 0 && !attributesQuery.isFetching && (
         <div className="rounded-md border border-status-watch/30 bg-status-watch/5 px-3 py-2 text-[11px] text-status-watch">
-          Couldn't load attribute metadata for{" "}
+          Couldn't load the columns of{" "}
           <code className="rounded bg-muted px-1 font-mono text-[10px]">
             {targetEntity}
           </code>
-          . You can still type attribute logical names manually — the FetchXML will
-          be valid as long as the names match real columns.
+          . Use the Edit FetchXML tab to write the query by hand.
         </div>
       )}
 
@@ -358,23 +378,14 @@ export function VisualFilterBuilder({
             Sort by
           </label>
           <div className="mt-1.5 flex gap-1.5">
-            <input
-              list="sort-attr-list"
+            <AttributeCombobox
+              id="sort-attribute"
               value={state.sortAttribute}
-              onChange={(e) => patch("sortAttribute", e.target.value.trim())}
+              attributes={attributes}
+              loading={attributesQuery.isFetching}
               placeholder="(no sort)"
-              spellCheck={false}
-              className="h-8 flex-1 rounded-md border border-border bg-background px-2.5 font-mono text-[11px] text-foreground focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+              onChange={(v) => patch("sortAttribute", v)}
             />
-            <datalist id="sort-attr-list">
-              {attributes
-                .filter((a) => !a.isSystem)
-                .map((a) => (
-                  <option key={a.logicalName} value={a.logicalName}>
-                    {a.displayName}
-                  </option>
-                ))}
-            </datalist>
           </div>
         </div>
         <button
@@ -429,7 +440,7 @@ export function VisualFilterBuilder({
           className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground shadow-sm transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-60"
         >
           <Wand2 className="h-3.5 w-3.5" strokeWidth={2.25} />
-          Use this FetchXML
+          Apply to query
         </button>
       </div>
 
