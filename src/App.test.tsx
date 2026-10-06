@@ -432,17 +432,16 @@ describe("Creativity Spark Summary Studio", () => {
     expect(screen.getByText("description")).toBeInTheDocument();
   });
 
-  it("changes the execution pattern from the execution stage", async () => {
+  it("only offers execution patterns the generator supports", async () => {
     renderRoute("/configurations/account-operations");
 
     fireEvent.click(await screen.findByRole("button", { name: /Execution/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Scheduled" }));
 
-    expect(screen.getByRole("button", { name: "Scheduled" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.getByText("Daily schedule")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Scheduled" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "On demand" })).toBeDisabled();
+    expect(
+      screen.getAllByText("Coming soon · the generator supports row changes only.").length,
+    ).toBe(2);
   });
 
   it("keeps the publish action in the process footer", async () => {
@@ -602,8 +601,8 @@ describe("Creativity Spark Summary Studio", () => {
     expect(screen.getByText("Configuration stored")).toBeInTheDocument();
     expect(screen.getByText("Flow definition prepared")).toBeInTheDocument();
     expect(screen.getAllByText("AI Prompt bound").length).toBeGreaterThan(0);
-    expect(screen.getByText("Schema validated")).toBeInTheDocument();
-    expect(screen.getByText("Stored in the solution")).toBeInTheDocument();
+    expect(screen.getByText("Recipe validated")).toBeInTheDocument();
+    expect(screen.getByText("Stored in Dataverse")).toBeInTheDocument();
   });
 
   it("lists saved AI prompts and opens them for editing", async () => {

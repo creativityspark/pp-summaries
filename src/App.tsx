@@ -736,6 +736,7 @@ function Overview() {
     [runtimeConfigurations],
   );
   const flows = useCloudFlows();
+  const catalogTables = useDataverseTables();
   const notify = useStudioToast();
   const createConfiguration = useCreateStudioConfiguration();
   const deactivateConfiguration = useDeactivateStudioConfiguration();
@@ -893,7 +894,10 @@ function Overview() {
                   </TableCell>
                   <TableCell>
                     <span className="table-value">
-                      <b>{item.entity === "account" ? "Account" : item.entity}</b>
+                      <b>
+                        {catalogTables.data?.find((table) => table.logicalName === item.entity)
+                          ?.displayName ?? item.entity}
+                      </b>
                       <small>{item.outputEntity}.{item.outputField}</small>
                     </span>
                   </TableCell>
@@ -2007,6 +2011,15 @@ function DestinationStep({
           </button>
         </LabeledField>
       </div>
+      {draft.outputEntity !== draft.entity && (
+        <p className="flows-warning destination-warning">
+          <Warning />
+          <span>
+            The generated flow writes the summary back to the {draft.entity} row
+            that changed. Use the same table as the source for the destination.
+          </span>
+        </p>
+      )}
       <div className="option-list">
         <button
           type="button"
@@ -2024,13 +2037,15 @@ function DestinationStep({
         <button
           type="button"
           aria-pressed={draft.preserveHistory}
+          disabled
+          title="Every run already stores a history row in csp_aisummarycache"
           className={draft.preserveHistory ? "selected" : ""}
           onClick={() => onChange({ preserveHistory: true })}
         >
           <span className="radio-dot" />
           <div>
             <b>Preserve history</b>
-            <small>Create a cache entry for every run.</small>
+            <small>Always on · every run is stored in csp_aisummarycache.</small>
           </div>
           {draft.preserveHistory && <Check />}
         </button>
@@ -2038,10 +2053,11 @@ function DestinationStep({
       <div className="inline-setting">
         <div>
           <b>Store generation metadata</b>
-          <small>Model, tokens, duration, and configuration version.</small>
+          <small>Always recorded in csp_aiusage for every run.</small>
         </div>
         <Switch
-          checked={draft.saveMetadata}
+          checked
+          disabled
           onCheckedChange={(checked) => onChange({ saveMetadata: checked })}
           aria-label="Store generation metadata"
         />
@@ -2062,7 +2078,7 @@ function triggerPresentation(type: string, columns: string[], tableRef = "a reco
   if (type === "schedule.daily")
     return {
       label: "Daily schedule",
-      detail: "Every day · Europe/Madrid",
+      detail: "Not supported yet",
       pattern: "Scheduled",
     };
   if (type === "manual")
@@ -2172,6 +2188,8 @@ function ExecutionStep({
         <button
           type="button"
           aria-label="Scheduled"
+          disabled
+          title="Not supported by the generator yet"
           aria-pressed={draft.triggerType === "schedule.daily"}
           className={draft.triggerType === "schedule.daily" ? "selected" : ""}
           onClick={() => onChange({ triggerType: "schedule.daily" })}
@@ -2181,13 +2199,15 @@ function ExecutionStep({
           </span>
           <div>
             <b>Scheduled</b>
-            <small>Daily, weekly, or a custom recurrence.</small>
+            <small>Coming soon · the generator supports row changes only.</small>
           </div>
           {draft.triggerType === "schedule.daily" && <Check />}
         </button>
         <button
           type="button"
           aria-label="On demand"
+          disabled
+          title="Not supported by the generator yet"
           aria-pressed={draft.triggerType === "manual"}
           className={draft.triggerType === "manual" ? "selected" : ""}
           onClick={() => onChange({ triggerType: "manual" })}
@@ -2197,7 +2217,7 @@ function ExecutionStep({
           </span>
           <div>
             <b>On demand</b>
-            <small>From a command or as a child flow.</small>
+            <small>Coming soon · the generator supports row changes only.</small>
           </div>
           {draft.triggerType === "manual" && <Check />}
         </button>
@@ -2663,11 +2683,7 @@ const paneContent: Record<
     eyebrow: "Summary pattern",
     value: "One summary per record",
     technical: "PerRecord",
-    options: [
-      "One summary per record",
-      "Consolidated summary",
-      "Modified records only",
-    ],
+    options: ["One summary per record"],
   },
   prompt: {
     title: "AI Prompt",
@@ -4550,7 +4566,7 @@ function Published() {
           <div className="deployment-checks">
             <span>
               <CheckCircle />
-              Schema validated
+              Recipe validated
             </span>
             <span>
               <LinkIcon />
@@ -4558,7 +4574,7 @@ function Published() {
             </span>
             <span>
               <Blocks />
-              Stored in the solution
+              Stored in Dataverse
             </span>
           </div>
         </div>
@@ -4568,11 +4584,13 @@ function Published() {
               <p className="micro-label text-muted-foreground">
                 Compilation result
               </p>
-              <h2>3 assets prepared</h2>
+              <h2>
+                {1 + (configuration?.promptId ? 1 : 0) + (flowCreated ? 1 : 0)} of 3 assets ready
+              </h2>
             </div>
             <span>
               <i />
-              Demo · Irish Power Platform Summit 2026
+              {data?.live ? "Dataverse" : "Local demo"}
             </span>
           </div>
           <div className="asset-timeline">
@@ -4709,7 +4727,11 @@ function Published() {
               ) : (
                 <>
                   The backend reads the recipe, composes the context, and updates{" "}
-                  <code>account.csp_aisummary</code>; the Code App already uses
+                  <code>
+                    {configuration?.outputEntity ?? "account"}.
+                    {configuration?.outputField ?? "csp_aisummary"}
+                  </code>
+                  ; the Code App already uses
                   the same Dataverse model.
                 </>
               )}

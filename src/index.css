@@ -611,6 +611,7 @@ code { font-family: var(--font-mono); }
 .editable-title .fui-Button { color: var(--muted-foreground); }
 .page-header > div:has(.title-input) { flex: 1 1 auto; }
 .title-input.fui-Input { width: 560px; max-width: 100%; margin-top: 4px; font-size: 20px; font-weight: 600; }
+.destination-warning { margin: 0 0 12px; border: 1px solid #f3d9a4; border-radius: var(--radius-control); }
 .query-limit { margin-right: auto; }
 .query-limit label { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: var(--muted-foreground); }
 .query-limit input { width: 88px !important; min-height: 32px !important; }
