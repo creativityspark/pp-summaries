@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<ImportExportXml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" OrganizationVersion="9.2.26085.166" OrganizationSchemaType="Standard" CRMServerServiceabilityVersion="9.2.26085.00166">
+<ImportExportXml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" OrganizationVersion="9.2.26091.158" OrganizationSchemaType="Standard" CRMServerServiceabilityVersion="9.2.26091.00158">
   <Entities />
   <Roles />
   <Workflows />
@@ -16,7 +16,7 @@
   <AIModels>
     <AIModel>
       <msdyn_aimodelid>{98ce2773-0538-4017-bf93-601b01be21eb}</msdyn_aimodelid>
-      <msdyn_name>PPS - Generic Summary</msdyn_name>
+      <msdyn_name>SS - Generic Summary</msdyn_name>
       <msdyn_templateid>{edfdb190-3791-45d8-9a6c-8f90a37c278a}</msdyn_templateid>
       <statecode>1</statecode>
       <statuscode>1</statuscode>
@@ -63,7 +63,7 @@
   </AIModels>
   <connectionreferences>
     <connectionreference connectionreferencelogicalname="csp_sharedcommondataserviceforapps_27015">
-      <connectionreferencedisplayname>Microsoft Dataverse PowerPlatformSummaries</connectionreferencedisplayname>
+      <connectionreferencedisplayname>Microsoft Dataverse Summary Studio</connectionreferencedisplayname>
       <connectorid>/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps</connectorid>
       <description>Microsoft Dataverse connection reference for Power Platform Summaries</description>
       <iscustomizable>1</iscustomizable>

@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<ImportExportXml version="9.2.26085.166" SolutionPackageVersion="9.2" languagecode="1033" generatedBy="CrmLive" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" OrganizationVersion="9.2.26085.166" OrganizationSchemaType="Standard" CRMServerServiceabilityVersion="9.2.26085.00166">
+<ImportExportXml version="9.2.26091.158" SolutionPackageVersion="9.2" languagecode="1033" generatedBy="CrmLive" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" OrganizationVersion="9.2.26091.158" OrganizationSchemaType="Standard" CRMServerServiceabilityVersion="9.2.26091.00158">
   <SolutionManifest>
     <UniqueName>PowerPlatformSummaries</UniqueName>
     <LocalizedNames>
@@ -80,17 +80,17 @@
       </Addresses>
     </Publisher>
     <RootComponents>
+      <RootComponent type="1" schemaName="account" behavior="2" />
+      <RootComponent type="1" schemaName="contact" behavior="2" />
       <RootComponent type="1" schemaName="csp_aiprompt" behavior="0" />
       <RootComponent type="1" schemaName="csp_aisummarycache" behavior="0" />
       <RootComponent type="1" schemaName="csp_aisummaryconfig" behavior="0" />
       <RootComponent type="1" schemaName="csp_aiusage" behavior="0" />
       <RootComponent type="1" schemaName="workflow" behavior="1" />
-      <RootComponent type="29" id="{1ae12351-fca2-f111-b8db-e4fb1ef76801}" behavior="0" />
-      <RootComponent type="29" id="{24b68f28-70b3-f111-aaac-7ced8d498108}" behavior="0" />
-      <RootComponent type="29" id="{33e0ca64-70b3-f111-aaac-7ced8d498108}" behavior="0" />
+      <RootComponent type="29" id="{2924a8c5-d4c0-f111-aaad-002248a2a874}" behavior="0" />
+      <RootComponent type="29" id="{93fb69a4-dcc0-f111-aaad-7ced8d498108}" behavior="0" />
       <RootComponent type="29" id="{d22116fe-eaa2-f111-b8db-7ced8d498108}" behavior="0" />
       <RootComponent type="29" id="{d79f40af-eda2-f111-b8db-002248a2a874}" behavior="0" />
-      <RootComponent type="29" id="{fc324a37-fda2-f111-b8db-7ced8d498108}" behavior="0" />
       <RootComponent type="300" schemaName="csp_bizzsummit2026codeapp_77836" behavior="0" />
       <RootComponent type="401" id="{98ce2773-0538-4017-bf93-601b01be21eb}" behavior="0" />
       <RootComponent type="61" schemaName="csp_/flowtemplates/run-prompt.htm" behavior="0" />
@@ -100,6 +100,40 @@
       <MissingDependency>
         <Required type="1" schemaName="workflow" displayName="Workflow" parentSchemaName="" solution="msft_AIPlatformExtensionsCore (1.0.0.102)" />
         <Dependent type="1" schemaName="workflow" displayName="Workflow" />
+      </MissingDependency>
+      <MissingDependency>
+        <Required type="60" displayName="Contact" parentDisplayName="Contact" solution="msdynce_AppCommon (9.0.4.0066)" id="{1fed44d1-ae68-4a41-bd2b-f13acac4acfa}">
+          <package appName="msdynce_AppCommon" version="9.0.26091.10001">msdynce_AppCommonAnchor (9.0.26091.10001)</package>
+        </Required>
+        <Dependent type="60" displayName="Contact" parentDisplayName="Contact" id="{1fed44d1-ae68-4a41-bd2b-f13acac4acfa}" />
+      </MissingDependency>
+      <MissingDependency>
+        <Required type="60" displayName="account contact card" parentDisplayName="Contact" solution="msdynce_AppCommon (9.0.4.0066)" id="{29de27bc-a257-4f29-99cf-bab4a84e688f}">
+          <package appName="msdynce_AppCommon" version="9.0.26091.10001">msdynce_AppCommonAnchor (9.0.26091.10001)</package>
+        </Required>
+        <Dependent type="60" displayName="Account" parentDisplayName="Account" id="{8448b78f-8f42-454e-8e2a-f8196b0419af}" />
+      </MissingDependency>
+      <MissingDependency>
+        <Required type="60" displayName="Account" parentDisplayName="Account" solution="msdynce_AppCommon (9.0.4.0066)" id="{8448b78f-8f42-454e-8e2a-f8196b0419af}">
+          <package appName="msdynce_AppCommon" version="9.0.26091.10001">msdynce_AppCommonAnchor (9.0.26091.10001)</package>
+        </Required>
+        <Dependent type="60" displayName="Account" parentDisplayName="Account" id="{8448b78f-8f42-454e-8e2a-f8196b0419af}" />
+      </MissingDependency>
+      <MissingDependency>
+        <Required type="61" schemaName="csp_/js/tools.js" displayName="csp_/js/tools.js" solution="Active" />
+        <Dependent type="60" displayName="Account" parentDisplayName="Account" id="{8448b78f-8f42-454e-8e2a-f8196b0419af}" />
+      </MissingDependency>
+      <MissingDependency>
+        <Required type="66" schemaName="MscrmControls.CardFeedContainer.CardFeedContainer" displayName="MscrmControls.CardFeedContainer.CardFeedContainer" solution="BaseCustomControlsCore (9.0.2609.1007)">
+          <package appName="Base Custom Controls" version="9.0.2609.1007">BaseCustomControlsCore (9.0.2609.1007)</package>
+        </Required>
+        <Dependent type="60" displayName="Contact" parentDisplayName="Contact" id="{1fed44d1-ae68-4a41-bd2b-f13acac4acfa}" />
+      </MissingDependency>
+      <MissingDependency>
+        <Required type="66" schemaName="MscrmControls.CardFeedContainer.CardFeedContainer" displayName="MscrmControls.CardFeedContainer.CardFeedContainer" solution="BaseCustomControlsCore (9.0.2609.1007)">
+          <package appName="Base Custom Controls" version="9.0.2609.1007">BaseCustomControlsCore (9.0.2609.1007)</package>
+        </Required>
+        <Dependent type="60" displayName="Account" parentDisplayName="Account" id="{8448b78f-8f42-454e-8e2a-f8196b0419af}" />
       </MissingDependency>
       <MissingDependency>
         <Required type="connectionreference" displayName="csp_sharedcommondataserviceforapps_a3be6" solution="Active" id.connectionreferencelogicalname="csp_sharedcommondataserviceforapps_a3be6" />

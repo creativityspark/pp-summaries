@@ -1,0 +1,430 @@
+{
+  "properties": {
+    "connectionReferences": {
+      "shared_commondataserviceforapps-1": {
+        "api": {
+          "name": "shared_commondataserviceforapps"
+        },
+        "connection": {
+          "connectionReferenceLogicalName": "csp_sharedcommondataserviceforapps_27015"
+        },
+        "runtimeSource": "embedded"
+      }
+    },
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "parameters": {
+        "$authentication": {
+          "defaultValue": {},
+          "type": "SecureObject"
+        },
+        "$connections": {
+          "defaultValue": {},
+          "type": "Object"
+        }
+      },
+      "triggers": {
+        "When_a_source_row_changes": {
+          "type": "OpenApiConnectionWebhook",
+          "description": "Fires only when one of the recipe trigger columns changes. The output column is never a trigger column, which prevents loops.",
+          "inputs": {
+            "parameters": {
+              "subscriptionRequest/message": 4,
+              "subscriptionRequest/entityname": "account",
+              "subscriptionRequest/scope": 4,
+              "subscriptionRequest/filteringattributes": "name,revenue,description,primarycontactid"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+              "operationId": "SubscribeWebhookTrigger",
+              "connectionName": "shared_commondataserviceforapps-1"
+            }
+          }
+        }
+      },
+      "actions": {
+        "Initialize_StartTime": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "StartTime",
+                "type": "string",
+                "value": "@{utcNow()}"
+              }
+            ]
+          },
+          "runAfter": {}
+        },
+        "Initialize_RecordId": {
+          "type": "InitializeVariable",
+          "inputs": {
+            "variables": [
+              {
+                "name": "RecordId",
+                "type": "string",
+                "value": "@{triggerOutputs()?['body/accountid']}"
+              }
+            ]
+          },
+          "runAfter": {
+            "Initialize_StartTime": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Get_Configuration": {
+          "type": "OpenApiConnection",
+          "description": "The recipe is read at run time, so edits made in Summary Studio apply without regenerating the flow.",
+          "inputs": {
+            "parameters": {
+              "entityName": "csp_aisummaryconfigs",
+              "recordId": "d91bdbca-caa2-f111-b8db-e4fb1ef76801",
+              "$select": "csp_name,csp_enabled,statecode,csp_fetchxml,csp_relatedfetchxml,_csp_prompt_value,csp_model"
+            },
+            "host": {
+              "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+              "operationId": "GetItem",
+              "connectionName": "shared_commondataserviceforapps-1"
+            }
+          },
+          "runAfter": {
+            "Initialize_RecordId": [
+              "Succeeded"
+            ]
+          }
+        },
+        "Check_Configuration_Enabled": {
+          "type": "If",
+          "expression": {
+            "and": [
+              {
+                "equals": [
+                  "@outputs('Get_Configuration')?['body/csp_enabled']",
+                  true
+                ]
+              },
+              {
+                "equals": [
+                  "@outputs('Get_Configuration')?['body/statecode']",
+                  0
+                ]
+              }
+            ]
+          },
+          "actions": {
+            "Try": {
+              "type": "Scope",
+              "actions": {
+                "Compose_Inclusion_Query": {
+                  "type": "Compose",
+                  "description": "Record-selection FetchXML without limits or paging, restricted to the triggering row.",
+                  "inputs": "@concat('<fetch>', substring(outputs('Get_Configuration')?['body/csp_fetchxml'], add(indexOf(outputs('Get_Configuration')?['body/csp_fetchxml'], '>'), 1), sub(lastIndexOf(outputs('Get_Configuration')?['body/csp_fetchxml'], '</entity>'), add(indexOf(outputs('Get_Configuration')?['body/csp_fetchxml'], '>'), 1))), '<filter><condition attribute=\"accountid\" operator=\"eq\" value=\"', variables('RecordId'), '\" /></filter>', substring(outputs('Get_Configuration')?['body/csp_fetchxml'], lastIndexOf(outputs('Get_Configuration')?['body/csp_fetchxml'], '</entity>')))",
+                  "runAfter": {}
+                },
+                "List_Included_Record": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "parameters": {
+                      "entityName": "accounts",
+                      "fetchXml": "@outputs('Compose_Inclusion_Query')"
+                    },
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                      "operationId": "ListRecords",
+                      "connectionName": "shared_commondataserviceforapps-1"
+                    }
+                  },
+                  "runAfter": {
+                    "Compose_Inclusion_Query": [
+                      "Succeeded"
+                    ]
+                  }
+                },
+                "Check_Record_Included": {
+                  "type": "If",
+                  "expression": {
+                    "and": [
+                      {
+                        "greater": [
+                          "@length(outputs('List_Included_Record')?['body/value'])",
+                          0
+                        ]
+                      }
+                    ]
+                  },
+                  "actions": {
+                    "Get_Prompt": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "parameters": {
+                          "entityName": "csp_aiprompts",
+                          "recordId": "@outputs('Get_Configuration')?['body/_csp_prompt_value']",
+                          "$select": "csp_name,csp_content,csp_version"
+                        },
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                          "operationId": "GetItem",
+                          "connectionName": "shared_commondataserviceforapps-1"
+                        }
+                      },
+                      "runAfter": {}
+                    },
+                    "List_Context": {
+                      "type": "OpenApiConnection",
+                      "description": "Per-record context FetchXML with the record placeholder replaced by the triggering row id.",
+                      "inputs": {
+                        "parameters": {
+                          "entityName": "accounts",
+                          "fetchXml": "@replace(outputs('Get_Configuration')?['body/csp_relatedfetchxml'], concat('{', '{recordId}', '}'), variables('RecordId'))"
+                        },
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                          "operationId": "ListRecords",
+                          "connectionName": "shared_commondataserviceforapps-1"
+                        }
+                      },
+                      "runAfter": {
+                        "Get_Prompt": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "Compose_Instructions": {
+                      "type": "Compose",
+                      "inputs": "@replace(replace(coalesce(outputs('Get_Prompt')?['body/csp_content'], ''), concat('{', '{account_context}', '}'), 'the Dataverse context supplied as input'), concat('{', '{generated_at}', '}'), utcNow())",
+                      "runAfter": {
+                        "List_Context": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "Run_Prompt": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "parameters": {
+                          "recordId": "98ce2773-0538-4017-bf93-601b01be21eb",
+                          "item/requestv2/Prompt": "@outputs('Compose_Instructions')",
+                          "item/requestv2/Input": "@string(outputs('List_Context')?['body/value'])"
+                        },
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                          "operationId": "aibuilderpredict_customprompt",
+                          "connectionName": "shared_commondataserviceforapps-1"
+                        }
+                      },
+                      "runAfter": {
+                        "Compose_Instructions": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "Compose_Summary": {
+                      "type": "Compose",
+                      "inputs": "@coalesce(outputs('Run_Prompt')?['body/responsev2/predictionOutput/text'], outputs('Run_Prompt')?['body/responsev2/predictionOutput/structuredOutput'], string(outputs('Run_Prompt')?['body/responsev2']))",
+                      "runAfter": {
+                        "Run_Prompt": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "Update_Summary": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "parameters": {
+                          "entityName": "accounts",
+                          "recordId": "@variables('RecordId')",
+                          "item/csp_aisummary": "@{outputs('Compose_Summary')}"
+                        },
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                          "operationId": "UpdateOnlyRecord",
+                          "connectionName": "shared_commondataserviceforapps-1"
+                        }
+                      },
+                      "runAfter": {
+                        "Compose_Summary": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "Check_Account_Destination": {
+                      "type": "If",
+                      "expression": {
+                        "and": [
+                          {
+                            "equals": [
+                              "account",
+                              "account"
+                            ]
+                          }
+                        ]
+                      },
+                      "actions": {
+                        "Update_Generated_On": {
+                          "type": "OpenApiConnection",
+                          "inputs": {
+                            "parameters": {
+                              "entityName": "accounts",
+                              "recordId": "@variables('RecordId')",
+                              "item/csp_aisummarygeneratedon": "@utcNow()"
+                            },
+                            "host": {
+                              "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                              "operationId": "UpdateOnlyRecord",
+                              "connectionName": "shared_commondataserviceforapps-1"
+                            }
+                          },
+                          "runAfter": {}
+                        }
+                      },
+                      "else": {
+                        "actions": {}
+                      },
+                      "runAfter": {
+                        "Update_Summary": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "Create_Summary_Cache": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "parameters": {
+                          "entityName": "csp_aisummarycaches",
+                          "item/csp_name": "@{coalesce(first(outputs('List_Included_Record')?['body/value'])?['name'], variables('RecordId'))} · Operational summary",
+                          "item/csp_content": "@{outputs('Compose_Summary')}",
+                          "item/csp_generatedon": "@utcNow()",
+                          "item/csp_targetentity": "account",
+                          "item/csp_targetrecordid": "@variables('RecordId')",
+                          "item/csp_outputentity": "account",
+                          "item/csp_outputfield": "csp_aisummary",
+                          "item/csp_status": 100000000,
+                          "item/csp_summarytype": 100000000,
+                          "item/csp_promptversion": "@{outputs('Get_Prompt')?['body/csp_version']}",
+                          "item/csp_durationms": "@div(sub(ticks(utcNow()), ticks(variables('StartTime'))), 10000)",
+                          "item/csp_SummaryConfig@odata.bind": "/csp_aisummaryconfigs(d91bdbca-caa2-f111-b8db-e4fb1ef76801)",
+                          "item/csp_Prompt@odata.bind": "/csp_aiprompts(@{outputs('Get_Configuration')?['body/_csp_prompt_value']})"
+                        },
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                          "operationId": "CreateRecord",
+                          "connectionName": "shared_commondataserviceforapps-1"
+                        }
+                      },
+                      "runAfter": {
+                        "Check_Account_Destination": [
+                          "Succeeded"
+                        ]
+                      }
+                    },
+                    "Create_Usage_Success": {
+                      "type": "OpenApiConnection",
+                      "inputs": {
+                        "parameters": {
+                          "entityName": "csp_aiusages",
+                          "item/csp_name": "RUN-@{substring(workflow()?['run']?['name'], sub(length(workflow()?['run']?['name']), 6))} · @{coalesce(first(outputs('List_Included_Record')?['body/value'])?['name'], variables('RecordId'))}",
+                          "item/csp_status": 100000000,
+                          "item/csp_timestamp": "@variables('StartTime')",
+                          "item/csp_latencyms": "@div(sub(ticks(utcNow()), ticks(variables('StartTime'))), 10000)",
+                          "item/csp_model": "@{outputs('Get_Configuration')?['body/csp_model']}",
+                          "item/csp_promptname": "@{outputs('Get_Prompt')?['body/csp_name']}",
+                          "item/csp_targetentity": "account",
+                          "item/csp_targetrecordid": "@variables('RecordId')",
+                          "item/csp_flowrunid": "@{workflow()?['run']?['name']}",
+                          "item/csp_SummaryConfig@odata.bind": "/csp_aisummaryconfigs(d91bdbca-caa2-f111-b8db-e4fb1ef76801)",
+                          "item/csp_PromptLookup@odata.bind": "/csp_aiprompts(@{outputs('Get_Configuration')?['body/_csp_prompt_value']})"
+                        },
+                        "host": {
+                          "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                          "operationId": "CreateRecord",
+                          "connectionName": "shared_commondataserviceforapps-1"
+                        }
+                      },
+                      "runAfter": {
+                        "Create_Summary_Cache": [
+                          "Succeeded"
+                        ]
+                      }
+                    }
+                  },
+                  "else": {
+                    "actions": {}
+                  },
+                  "runAfter": {
+                    "List_Included_Record": [
+                      "Succeeded"
+                    ]
+                  }
+                }
+              },
+              "runAfter": {}
+            },
+            "Catch": {
+              "type": "Scope",
+              "actions": {
+                "Create_Usage_Failure": {
+                  "type": "OpenApiConnection",
+                  "inputs": {
+                    "parameters": {
+                      "entityName": "csp_aiusages",
+                      "item/csp_name": "RUN-@{substring(workflow()?['run']?['name'], sub(length(workflow()?['run']?['name']), 6))} · @{variables('RecordId')}",
+                      "item/csp_status": 100000001,
+                      "item/csp_timestamp": "@variables('StartTime')",
+                      "item/csp_latencyms": "@div(sub(ticks(utcNow()), ticks(variables('StartTime'))), 10000)",
+                      "item/csp_model": "@{outputs('Get_Configuration')?['body/csp_model']}",
+                      "item/csp_targetentity": "account",
+                      "item/csp_targetrecordid": "@variables('RecordId')",
+                      "item/csp_flowrunid": "@{workflow()?['run']?['name']}",
+                      "item/csp_error": "@{take(string(result('Try')), 3900)}",
+                      "item/csp_SummaryConfig@odata.bind": "/csp_aisummaryconfigs(d91bdbca-caa2-f111-b8db-e4fb1ef76801)"
+                    },
+                    "host": {
+                      "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+                      "operationId": "CreateRecord",
+                      "connectionName": "shared_commondataserviceforapps-1"
+                    }
+                  },
+                  "runAfter": {}
+                },
+                "Terminate_Failed": {
+                  "type": "Terminate",
+                  "inputs": {
+                    "runStatus": "Failed",
+                    "runError": {
+                      "code": "SummaryFailed",
+                      "message": "The summary could not be generated. See the csp_aiusage record for details."
+                    }
+                  },
+                  "runAfter": {
+                    "Create_Usage_Failure": [
+                      "Succeeded",
+                      "Failed"
+                    ]
+                  }
+                }
+              },
+              "runAfter": {
+                "Try": [
+                  "Failed",
+                  "TimedOut"
+                ]
+              }
+            }
+          },
+          "else": {
+            "actions": {}
+          },
+          "runAfter": {
+            "Get_Configuration": [
+              "Succeeded"
+            ]
+          }
+        }
+      }
+    },
+    "templateName": null
+  },
+  "schemaVersion": "1.0.0.0"
+}

@@ -249,51 +249,12 @@
                                                 ]
                                             }
                                         },
-                                        "Check_Account_Destination": {
-                                            "type": "If",
-                                            "expression": {
-                                                "and": [
-                                                    {
-                                                        "equals": [
-                                                            "{{csp_targetentity}}",
-                                                            "account"
-                                                        ]
-                                                    }
-                                                ]
-                                            },
-                                            "actions": {
-                                                "Update_Generated_On": {
-                                                    "type": "OpenApiConnection",
-                                                    "inputs": {
-                                                        "parameters": {
-                                                            "entityName": "accounts",
-                                                            "recordId": "@variables('RecordId')",
-                                                            "item/csp_aisummarygeneratedon": "@utcNow()"
-                                                        },
-                                                        "host": {
-                                                            "apiId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
-                                                            "operationId": "UpdateOnlyRecord",
-                                                            "connectionName": "shared_commondataserviceforapps-1"
-                                                        }
-                                                    },
-                                                    "runAfter": {}
-                                                }
-                                            },
-                                            "else": {
-                                                "actions": {}
-                                            },
-                                            "runAfter": {
-                                                "Update_Summary": [
-                                                    "Succeeded"
-                                                ]
-                                            }
-                                        },
                                         "Create_Summary_Cache": {
                                             "type": "OpenApiConnection",
                                             "inputs": {
                                                 "parameters": {
                                                     "entityName": "csp_aisummarycaches",
-                                                    "item/csp_name": "@{coalesce(first(outputs('List_Included_Record')?['body/value'])?['name'], variables('RecordId'))} · Operational summary",
+                                                    "item/csp_name": "@{coalesce(first(outputs('List_Included_Record')?['body/value'])?['name'], first(outputs('List_Included_Record')?['body/value'])?['fullname'], first(outputs('List_Included_Record')?['body/value'])?['title'], first(outputs('List_Included_Record')?['body/value'])?['subject'], variables('RecordId'))} · Operational summary",
                                                     "item/csp_content": "@{outputs('Compose_Summary')}",
                                                     "item/csp_generatedon": "@utcNow()",
                                                     "item/csp_targetentity": "{{csp_targetentity}}",
@@ -314,7 +275,7 @@
                                                 }
                                             },
                                             "runAfter": {
-                                                "Check_Account_Destination": [
+                                                "Update_Summary": [
                                                     "Succeeded"
                                                 ]
                                             }
@@ -324,7 +285,7 @@
                                             "inputs": {
                                                 "parameters": {
                                                     "entityName": "csp_aiusages",
-                                                    "item/csp_name": "RUN-@{substring(workflow()?['run']?['name'], sub(length(workflow()?['run']?['name']), 6))} · @{coalesce(first(outputs('List_Included_Record')?['body/value'])?['name'], variables('RecordId'))}",
+                                                    "item/csp_name": "RUN-@{substring(workflow()?['run']?['name'], sub(length(workflow()?['run']?['name']), 6))} · @{coalesce(first(outputs('List_Included_Record')?['body/value'])?['name'], first(outputs('List_Included_Record')?['body/value'])?['fullname'], first(outputs('List_Included_Record')?['body/value'])?['title'], first(outputs('List_Included_Record')?['body/value'])?['subject'], variables('RecordId'))}",
                                                     "item/csp_status": 100000000,
                                                     "item/csp_timestamp": "@variables('StartTime')",
                                                     "item/csp_latencyms": "@div(sub(ticks(utcNow()), ticks(variables('StartTime'))), 10000)",

@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <CanvasApp xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <Name>csp_bizzsummit2026codeapp_77836</Name>
-  <AppVersion>2026-09-28T20:53:16Z</AppVersion>
+  <AppVersion>2026-10-06T19:34:05Z</AppVersion>
   <Status>Ready</Status>
   <CreatedByClientVersion>0.0.0.0</CreatedByClientVersion>
   <MinClientVersion>0.0.0.0</MinClientVersion>
@@ -9,12 +9,12 @@
   <IsCdsUpgraded>0</IsCdsUpgraded>
   <GalleryItemId xsi:nil="true"></GalleryItemId>
   <BackgroundColor>RGBA(255,255,255,1)</BackgroundColor>
-  <DisplayName>Irish Summit 2026 · Summary Studio</DisplayName>
+  <DisplayName>Summary Studio</DisplayName>
   <Description>Configurable AI summarisation framework for Dataverse</Description>
   <CommitMessage xsi:nil="true"></CommitMessage>
   <Publisher></Publisher>
   <AuthorizationReferences>[]</AuthorizationReferences>
-  <ConnectionReferences>{"6a6da87c-0a25-4b64-ba6f-0329f7c37bde":{"id":"/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps","displayName":"Microsoft Dataverse","iconUri":"https://static.powerapps.com/resource/ppcr/releases/v1.0.1827/1.0.1827.4939/commondataserviceforapps/icon.png","dataSources":["commondataserviceforapps"],"dependencies":[],"dependents":[],"parameterHints":{},"parameterHintsV2":{},"isOnPremiseConnection":false,"bypassConsent":false,"dataSets":{},"apiTier":"Premium","actions":[]}}</ConnectionReferences>
+  <ConnectionReferences>{"6a6da87c-0a25-4b64-ba6f-0329f7c37bde":{"id":"/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps","displayName":"Microsoft Dataverse","iconUri":"https://static.powerapps.com/resource/ppcr/releases/v1.0.1831/1.0.1831.5064/commondataserviceforapps/icon.png","dataSources":["commondataserviceforapps"],"dependencies":[],"dependents":[],"parameterHints":{},"parameterHintsV2":{},"isOnPremiseConnection":false,"bypassConsent":false,"dataSets":{},"apiTier":"Premium","actions":[]}}</ConnectionReferences>
   <DatabaseReferences>{"default.cds":{"databaseDetails":{"referenceType":"Environmental","environmentName":"default.cds","overrideValues":{"status":"NotSpecified","environmentVariableName":""}},"dataSources":{"accounts":{"entitySetName":"accounts","logicalName":"account"},"aisummarycaches":{"entitySetName":"csp_aisummarycaches","logicalName":"csp_aisummarycache"},"aiusagelogs":{"entitySetName":"csp_aiusages","logicalName":"csp_aiusage"},"aiprompts":{"entitySetName":"csp_aiprompts","logicalName":"csp_aiprompt"},"aisummaryconfigs":{"entitySetName":"csp_aisummaryconfigs","logicalName":"csp_aisummaryconfig"},"savedqueries":{"entitySetName":"savedqueries","logicalName":"savedquery"},"userqueries":{"entitySetName":"userqueries","logicalName":"userquery"}}}}</DatabaseReferences>
   <AppComponents>[]</AppComponents>
   <AppComponentDependencies>[]</AppComponentDependencies>
@@ -28,14 +28,14 @@
   <IsCustomizable>1</IsCustomizable>
   <CodeAppPackageUris>
     <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/index.html_ContentType_text/html</CodeAppPackageUri>
-    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/AccountsService-BGZQEoL8.js_ContentType_application/javascript</CodeAppPackageUri>
-    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/Csp_aipromptsService-CczE63Fo.js_ContentType_application/javascript</CodeAppPackageUri>
-    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/Csp_aisummarycachesService-Dx1GYDy3.js_ContentType_application/javascript</CodeAppPackageUri>
-    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/Csp_aisummaryconfigsService-C1XqFLWu.js_ContentType_application/javascript</CodeAppPackageUri>
-    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/Csp_aiusagesService-BxKNYprI.js_ContentType_application/javascript</CodeAppPackageUri>
-    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/index-Clx6YBHT.css_ContentType_text/css</CodeAppPackageUri>
-    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/index-D70Z7sLP.js_ContentType_application/javascript</CodeAppPackageUri>
-    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/index-OtxLeTc-.js_ContentType_application/javascript</CodeAppPackageUri>
+    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/AccountsService-2EAvAvFx.js_ContentType_application/javascript</CodeAppPackageUri>
+    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/Csp_aipromptsService-CjXETtU1.js_ContentType_application/javascript</CodeAppPackageUri>
+    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/Csp_aisummarycachesService-hbYPnqRc.js_ContentType_application/javascript</CodeAppPackageUri>
+    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/Csp_aisummaryconfigsService-BuDJLpRc.js_ContentType_application/javascript</CodeAppPackageUri>
+    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/Csp_aiusagesService-BREZccjw.js_ContentType_application/javascript</CodeAppPackageUri>
+    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/index-D165fblg.js_ContentType_application/javascript</CodeAppPackageUri>
+    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/index-r5n0r6yM.css_ContentType_text/css</CodeAppPackageUri>
+    <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/index-w2wlPz8l.js_ContentType_application/javascript</CodeAppPackageUri>
     <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/query-BIV5DHwG.js_ContentType_application/javascript</CodeAppPackageUri>
     <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/assets/react-vendor-Driq_CDr.js_ContentType_application/javascript</CodeAppPackageUri>
     <CodeAppPackageUri>/CanvasApps/csp_bizzsummit2026codeapp_77836_CodeAppPackages/creativity-spark-mark.png_ContentType_image/png</CodeAppPackageUri>

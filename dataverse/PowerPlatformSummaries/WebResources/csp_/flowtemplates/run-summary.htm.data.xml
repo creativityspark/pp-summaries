@@ -2,7 +2,8 @@
 <WebResource xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <WebResourceId>{bc271cee-7bbb-f111-aaaf-7ced8d498108}</WebResourceId>
   <Name>csp_/flowtemplates/run-summary.htm</Name>
-  <DisplayName>Summary Studio · run-summary flow template</DisplayName>
+  <DisplayName>csp_/flowtemplates/run-summary.htm</DisplayName>
+  <LanguageCode>0</LanguageCode>
   <WebResourceType>1</WebResourceType>
   <IntroducedVersion>1.0.0.1</IntroducedVersion>
   <IsEnabledForMobileClient>0</IsEnabledForMobileClient>
